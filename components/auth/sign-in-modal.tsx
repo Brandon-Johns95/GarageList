@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -26,16 +26,6 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
   const [rememberMe, setRememberMe] = useState(true)
   const { signIn, user } = useAuth()
 
-  // Close modal when user successfully signs in
-  useEffect(() => {
-    if (user && isOpen) {
-      onClose()
-      setEmail("")
-      setPassword("")
-      setRememberMe(true)
-    }
-  }, [user, isOpen, onClose])
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
@@ -45,6 +35,12 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
 
     if (error) {
       setError(error.message)
+    } else {
+      // Only close modal and reset form if sign in was successful
+      onClose()
+      setEmail("")
+      setPassword("")
+      setError("")
     }
 
     setLoading(false)

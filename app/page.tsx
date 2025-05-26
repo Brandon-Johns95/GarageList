@@ -71,7 +71,7 @@ export default function CarMarketplace() {
   const [error, setError] = useState("")
   const [sortBy, setSortBy] = useState("newest")
 
-  const { user, profile, signOut, loading: authLoading } = useAuth()
+  const { user, profile, signOut } = useAuth()
   const [showSignIn, setShowSignIn] = useState(false)
   const [showSignUp, setShowSignUp] = useState(false)
 
@@ -80,11 +80,8 @@ export default function CarMarketplace() {
 
   // Load listings when component mounts or location changes
   useEffect(() => {
-    // Only load listings after auth has finished loading
-    if (!authLoading) {
-      loadListings()
-    }
-  }, [selectedLocation, vehiclePreferences, authLoading])
+    loadListings()
+  }, [selectedLocation, vehiclePreferences])
 
   const handleLocationSelect = (state: string, city: string) => {
     setSelectedLocation({ state, city })
@@ -121,119 +118,94 @@ export default function CarMarketplace() {
       setIsLoading(true)
       setError("")
 
-      // Fetch listings with photos and features only
+      // Fetch listings with photos and user profiles
       let query = supabase
         .from("listings")
         .select(`
-      *,
-      listing_photos (
-        photo_url,
-        is_main_photo,
-        sort_order
-      ),
-      listing_features (
-        feature_name
-      )
-    `)
-        .or("status.eq.active,status.eq.pending,status.is.null")
-        .not("status", "eq", "sold")
-        .not("status", "eq", "draft")
-        .not("status", "eq", "expired")
-        .not("published_at", "is", null)
+    *,
+    listing_photos (
+      photo_url,
+      is_main_photo,
+      sort_order
+    ),
+    listing_features (
+      feature_name
+    )
+  `)
+        .or("status.eq.active,status.eq.pending,status.is.null") // Show active, pending, or no status set
+        .not("status", "eq", "sold") // Exclude sold listings
+        .not("status", "eq", "draft") // Exclude draft listings
+        .not("status", "eq", "expired") // Exclude expired listings
+
+      // Add check for published listings only
+      query = query.not("published_at", "is", null)
 
       // Filter by location if selected
       if (selectedLocation && selectedLocation.state !== "Current Location") {
         query = query.or(`location.ilike.%${selectedLocation.city}%,location.ilike.%${selectedLocation.state}%`)
       }
 
-      const { data: listings, error: listingsError } = await query.order("created_at", { ascending: false }).limit(50)
+      const { data: listings, error: listingsError } = await query.order("created_at", { ascending: false })
 
       if (listingsError) {
         throw new Error(`Failed to load listings: ${listingsError.message}`)
       }
 
-      // Get unique user IDs from listings
-      const userIds = [...new Set(listings?.map((listing) => listing.user_id).filter(Boolean))]
-
-      // Try to fetch user profiles, but handle gracefully if table doesn't exist
-      let userProfiles = []
-      if (userIds.length > 0) {
-        try {
-          // Try user_profiles first
-          const { data: profiles, error: profilesError } = await supabase
+      // Fetch user profiles separately for each listing
+      const listingsWithProfiles = await Promise.all(
+        (listings || []).map(async (listing) => {
+          const { data: userProfile } = await supabase
             .from("user_profiles")
-            .select("id, first_name, last_name, avatar_url, phone")
-            .in("id", userIds)
-
-          if (profilesError) {
-            console.warn("Could not fetch from user_profiles:", profilesError)
-            // Try profiles table as fallback
-            try {
-              const { data: fallbackProfiles } = await supabase
-                .from("profiles")
-                .select("id, first_name, last_name, avatar_url, phone")
-                .in("id", userIds)
-              userProfiles = fallbackProfiles || []
-            } catch (fallbackError) {
-              console.warn("Could not fetch from profiles either:", fallbackError)
-            }
-          } else {
-            userProfiles = profiles || []
-          }
-        } catch (profileError) {
-          console.warn("Could not fetch user profiles:", profileError)
-          // Continue without profiles
-        }
-      }
-
-      // Create a map for quick profile lookup
-      const profileMap = new Map()
-      userProfiles.forEach((profile) => {
-        profileMap.set(profile.id, profile)
-      })
-
-      // Transform the data
-      const transformedListings =
-        listings?.map((listing) => {
-          const userProfile = profileMap.get(listing.user_id)
+            .select("first_name, last_name, avatar_url, phone, average_rating, total_reviews")
+            .eq("id", listing.user_id)
+            .single()
 
           return {
-            id: listing.id,
-            title: listing.title,
-            price: listing.price,
-            year: listing.year,
-            mileage: listing.mileage,
-            location: listing.location,
-            status: listing.status,
-            vehicleCategory: listing.vehicle_category || "cars",
-            images: listing.listing_photos
-              ?.sort((a, b) => a.sort_order - b.sort_order)
-              ?.map((photo) => photo.photo_url) || ["/placeholder.svg?height=200&width=300"],
-            seller: {
-              id: listing.user_id,
-              name: userProfile
-                ? `${userProfile.first_name || ""} ${userProfile.last_name || ""}`.trim() || "Anonymous Seller"
-                : "Anonymous Seller",
-              rating: 0,
-              reviews: 0,
-              avatar: userProfile?.avatar_url || "/placeholder.svg?height=40&width=40",
-              phone: userProfile?.phone,
-            },
-            features: listing.listing_features?.map((feature) => feature.feature_name) || [],
-            fuelType: listing.fuel_type || "Gasoline",
-            transmission: listing.transmission || "Automatic",
-            bodyType: listing.body_type || "Sedan",
-            condition: listing.condition || "Good",
-            description: listing.description || "",
-            exteriorColor: listing.exterior_color || "",
-            interiorColor: listing.interior_color || "",
-            vin: listing.vin || "",
-            negotiable: listing.negotiable || false,
-            tradeConsidered: listing.trade_considered || false,
-            financingAvailable: listing.financing_available || false,
-            publishedAt: listing.published_at,
+            ...listing,
+            user_profiles: userProfile,
           }
-        }) || []
+        }),
+      )
+
+      // Transform the data to match the expected format
+      const transformedListings =
+        listingsWithProfiles?.map((listing) => ({
+          id: listing.id,
+          title: listing.title,
+          price: listing.price,
+          year: listing.year,
+          mileage: listing.mileage,
+          location: listing.location,
+          status: listing.status, // Add this line
+          vehicleCategory: listing.vehicle_category || "cars",
+          images: listing.listing_photos
+            ?.sort((a, b) => a.sort_order - b.sort_order)
+            ?.map((photo) => photo.photo_url) || ["/placeholder.svg?height=200&width=300"],
+          seller: {
+            id: listing.user_id,
+            name: listing.user_profiles
+              ? `${listing.user_profiles.first_name || ""} ${listing.user_profiles.last_name || ""}`.trim() ||
+                "Anonymous Seller"
+              : "Anonymous Seller",
+            rating: listing.user_profiles?.average_rating || 0,
+            reviews: listing.user_profiles?.total_reviews || 0,
+            avatar: listing.user_profiles?.avatar_url || "/placeholder.svg?height=40&width=40",
+            phone: listing.user_profiles?.phone,
+          },
+          features: listing.listing_features?.map((feature) => feature.feature_name) || [],
+          fuelType: listing.fuel_type || "Gasoline",
+          transmission: listing.transmission || "Automatic",
+          bodyType: listing.body_type || "Sedan",
+          condition: listing.condition || "Good",
+          description: listing.description || "",
+          exteriorColor: listing.exterior_color || "",
+          interiorColor: listing.interior_color || "",
+          vin: listing.vin || "",
+          negotiable: listing.negotiable || false,
+          tradeConsidered: listing.trade_considered || false,
+          financingAvailable: listing.financing_available || false,
+          publishedAt: listing.published_at,
+        })) || []
 
       setCarListings(transformedListings)
     } catch (error) {
@@ -242,20 +214,6 @@ export default function CarMarketplace() {
     } finally {
       setIsLoading(false)
     }
-  }
-
-  // Show loading while auth is loading
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50">
-        <div className="flex items-center justify-center min-h-[50vh]">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading...</p>
-          </div>
-        </div>
-      </div>
-    )
   }
 
   // Show location selector if user hasn't selected a location

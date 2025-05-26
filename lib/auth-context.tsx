@@ -89,11 +89,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // If we have a session and user chose to be remembered, refresh it
         if (session?.user && rememberMe) {
-          try {
-            await supabase.auth.refreshSession()
-          } catch (refreshError) {
-            console.warn("Could not refresh session:", refreshError)
-          }
+          await supabase.auth.refreshSession()
         }
 
         // SET user from session
@@ -139,13 +135,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   /**
    * PSEUDO CODE: Load User Profile
    * FLOW:
-   *   1. TRY to query user_profiles table for user data
+   *   1. QUERY user_profiles table for user data
    *   2. IF profile exists: SET profile state
-   *   3. IF no profile or error: HANDLE gracefully (new user or missing table)
+   *   3. IF no profile: HANDLE gracefully (new user)
    */
   const loadUserProfile = async (userId: string) => {
     try {
-      // Try user_profiles first
       const { data, error } = await supabase.from("user_profiles").select("*").eq("id", userId).single()
 
       if (error) {
@@ -161,20 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error("Error in loadUserProfile:", error)
-      // Try alternative table name
-      try {
-        const { data, error: profilesError } = await supabase.from("profiles").select("*").eq("id", userId).single()
-
-        if (profilesError) {
-          console.warn("Could not load from profiles table either:", profilesError)
-          setProfile(null)
-        } else {
-          setProfile(data)
-        }
-      } catch (fallbackError) {
-        console.warn("Could not load profile from any table:", fallbackError)
-        setProfile(null)
-      }
+      setProfile(null)
     }
   }
 
@@ -197,37 +179,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    *   3. RETURN success/error status
    */
   const signIn = async (email: string, password: string, rememberMe = false) => {
-    try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-        options: {
-          data: {
-            remember_me: rememberMe,
-          },
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+      options: {
+        data: {
+          remember_me: rememberMe,
         },
-      })
+      },
+    })
 
-      // Configure session persistence based on remember me preference
-      if (!error) {
-        if (rememberMe) {
-          localStorage.setItem("auth_remember_me", "true")
-          // Set a longer session for remember me users
-          try {
-            await supabase.auth.refreshSession()
-          } catch (refreshError) {
-            console.warn("Could not refresh session:", refreshError)
-          }
-        } else {
-          localStorage.removeItem("auth_remember_me")
-        }
+    // Configure session persistence based on remember me preference
+    if (!error) {
+      if (rememberMe) {
+        localStorage.setItem("auth_remember_me", "true")
+        // Set a longer session for remember me users
+        await supabase.auth.refreshSession()
+      } else {
+        localStorage.removeItem("auth_remember_me")
       }
-
-      return { error }
-    } catch (error) {
-      console.error("Error in signIn:", error)
-      return { error }
     }
+
+    return { error }
   }
 
   /**
@@ -238,26 +211,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    *   3. RETURN success/error status
    */
   const signUp = async (email: string, password: string, userData: any) => {
-    try {
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            first_name: userData.firstName,
-            last_name: userData.lastName,
-            date_of_birth: userData.dateOfBirth,
-            phone: userData.phone,
-            city: userData.city,
-            state: userData.state,
-          },
+    const { error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          first_name: userData.firstName,
+          last_name: userData.lastName,
+          date_of_birth: userData.dateOfBirth,
+          phone: userData.phone,
+          city: userData.city,
+          state: userData.state,
         },
-      })
-      return { error }
-    } catch (error) {
-      console.error("Error in signUp:", error)
-      return { error }
-    }
+      },
+    })
+    return { error }
   }
 
   /**
@@ -296,27 +264,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
    * PSEUDO CODE: Update User Profile
    * FLOW:
    *   1. VALIDATE user is logged in
-   *   2. TRY to update profile in database
+   *   2. UPDATE profile in database
    *   3. UPDATE local state if successful
    */
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!user) return { error: new Error("No user logged in") }
 
-    try {
-      const { error } = await supabase
-        .from("user_profiles")
-        .update({ ...updates, updated_at: new Date().toISOString() })
-        .eq("id", user.id)
+    const { error } = await supabase
+      .from("user_profiles")
+      .update({ ...updates, updated_at: new Date().toISOString() })
+      .eq("id", user.id)
 
-      if (!error) {
-        setProfile((prev) => (prev ? { ...prev, ...updates } : null))
-      }
-
-      return { error }
-    } catch (error) {
-      console.error("Error updating profile:", error)
-      return { error }
+    if (!error) {
+      setProfile((prev) => (prev ? { ...prev, ...updates } : null))
     }
+
+    return { error }
   }
 
   // STEP 5: Provide context value to children

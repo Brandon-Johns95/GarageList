@@ -38,8 +38,6 @@ import { SellerReputation } from "@/components/rating/seller-reputation"
 import { useAuth } from "@/lib/auth-context"
 import { Header } from "@/components/header"
 import { MessagingInterface } from "@/components/messaging/messaging-interface"
-import { SignInModal } from "@/components/auth/sign-in-modal"
-import { SignUpModal } from "@/components/auth/sign-up-modal"
 
 // Helper function to safely format numbers
 const safeToLocaleString = (value: any): string => {
@@ -108,8 +106,6 @@ export default function ListingDetailPage() {
   const [showMessaging, setShowMessaging] = useState(false)
   const [conversation, setConversation] = useState(null)
   const [isCreatingConversation, setIsCreatingConversation] = useState(false)
-  const [showSignInModal, setShowSignInModal] = useState(false)
-  const [showSignUpModal, setShowSignUpModal] = useState(false)
 
   const incrementViewCount = async () => {
     try {
@@ -1055,70 +1051,57 @@ Thank you!`)
                 </div>
 
                 <div className="space-y-3">
-                  {user ? (
-                    <>
-                      <Button
-                        className="w-full"
-                        size="lg"
-                        onClick={handleStartConversation}
-                        disabled={isCreatingConversation || isSellerViewing}
-                      >
-                        <MessageCircle className="h-4 w-4 mr-2" />
-                        {isCreatingConversation ? "Starting..." : "Message Seller"}
-                      </Button>
-                      <Button variant="outline" className="w-full" onClick={() => setShowContactForm(true)}>
-                        <Mail className="h-4 w-4 mr-2" />
-                        Send Email
-                      </Button>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleCall}
-                          disabled={!seller?.phone}
-                          title={
-                            seller?.phone ? `Call ${formatPhoneNumber(seller.phone)}` : "Phone number not available"
-                          }
-                        >
-                          <Phone className="h-4 w-4 mr-2" />
-                          Call
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={handleEmail}
-                          disabled={!seller?.email}
-                          title={seller?.email ? `Email ${seller.email}` : "Email not available"}
-                        >
-                          <Mail className="h-4 w-4 mr-2" />
-                          Email
-                        </Button>
-                      </div>
+                  <Button
+                    className="w-full"
+                    size="lg"
+                    onClick={handleStartConversation}
+                    disabled={isCreatingConversation || isSellerViewing}
+                  >
+                    <MessageCircle className="h-4 w-4 mr-2" />
+                    {isCreatingConversation ? "Starting..." : "Message Seller"}
+                  </Button>
+                  <Button variant="outline" className="w-full" onClick={() => setShowContactForm(true)}>
+                    <Mail className="h-4 w-4 mr-2" />
+                    Send Email
+                  </Button>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleCall}
+                      disabled={!seller?.phone}
+                      title={seller?.phone ? `Call ${formatPhoneNumber(seller.phone)}` : "Phone number not available"}
+                    >
+                      <Phone className="h-4 w-4 mr-2" />
+                      Call
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleEmail}
+                      disabled={!seller?.email}
+                      title={seller?.email ? `Email ${seller.email}` : "Email not available"}
+                    >
+                      <Mail className="h-4 w-4 mr-2" />
+                      Email
+                    </Button>
+                  </div>
 
-                      {/* Contact Info Display - Only for signed in users */}
-                      {(seller?.phone || seller?.email) && (
-                        <div className="mt-4 p-3 bg-gray-50 rounded-lg text-sm">
-                          {seller.phone && (
-                            <div className="flex items-center justify-between">
-                              <span className="text-gray-600">Phone:</span>
-                              <span className="font-medium">{formatPhoneNumber(seller.phone)}</span>
-                            </div>
-                          )}
-                          {seller.email && (
-                            <div className="flex items-center justify-between mt-1">
-                              <span className="text-gray-600">Email:</span>
-                              <span className="font-medium text-xs">{seller.email}</span>
-                            </div>
-                          )}
+                  {/* Contact Info Display */}
+                  {(seller?.phone || seller?.email) && (
+                    <div className="mt-4 p-3 bg-gray-50 rounded-lg text-sm">
+                      {seller.phone && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-gray-600">Phone:</span>
+                          <span className="font-medium">{formatPhoneNumber(seller.phone)}</span>
                         </div>
                       )}
-                    </>
-                  ) : (
-                    <div className="text-center">
-                      <p className="text-gray-600 mb-4">Sign in to contact the seller</p>
-                      <Button onClick={() => setShowSignInModal(true)} className="w-full bg-blue-600 hover:bg-blue-700">
-                        Contact Seller
-                      </Button>
+                      {seller.email && (
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-gray-600">Email:</span>
+                          <span className="font-medium text-xs">{seller.email}</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -1142,14 +1125,14 @@ Thank you!`)
                     />
                   </div>
                   <div>
-                    <h3 className="font-semibold">{user ? seller?.name || "Seller" : "Seller"}</h3>
+                    <h3 className="font-semibold">{seller?.name || "Seller"}</h3>
                     <div className="flex items-center">
                       <Star className="h-4 w-4 fill-yellow-400 text-yellow-400 mr-1" />
                       <span className="text-sm text-gray-600">
                         {seller?.rating || 5.0} ({seller?.reviewCount || 0} reviews)
                       </span>
                     </div>
-                    {user && seller?.city && seller?.state && (
+                    {seller?.city && seller?.state && (
                       <p className="text-sm text-gray-600">
                         {seller.city}, {seller.state}
                       </p>
@@ -1325,24 +1308,6 @@ Thank you!`)
           </Card>
         </div>
       )}
-
-      {/* Sign-in/Sign-up Modals */}
-      <SignInModal
-        isOpen={showSignInModal}
-        onClose={() => setShowSignInModal(false)}
-        onSwitchToSignUp={() => {
-          setShowSignInModal(false)
-          setShowSignUpModal(true)
-        }}
-      />
-      <SignUpModal
-        isOpen={showSignUpModal}
-        onClose={() => setShowSignUpModal(false)}
-        onSwitchToSignIn={() => {
-          setShowSignUpModal(false)
-          setShowSignInModal(true)
-        }}
-      />
     </div>
   )
 }
