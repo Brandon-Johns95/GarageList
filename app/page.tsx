@@ -71,7 +71,7 @@ export default function CarMarketplace() {
   const [error, setError] = useState("")
   const [sortBy, setSortBy] = useState("newest")
 
-  const { user, profile, signOut } = useAuth()
+  const { user, profile, signOut, loading: authLoading } = useAuth()
   const [showSignIn, setShowSignIn] = useState(false)
   const [showSignUp, setShowSignUp] = useState(false)
 
@@ -80,8 +80,11 @@ export default function CarMarketplace() {
 
   // Load listings when component mounts or location changes
   useEffect(() => {
-    loadListings()
-  }, [selectedLocation, vehiclePreferences])
+    // Only load listings after auth has finished loading
+    if (!authLoading) {
+      loadListings()
+    }
+  }, [selectedLocation, vehiclePreferences, authLoading])
 
   const handleLocationSelect = (state: string, city: string) => {
     setSelectedLocation({ state, city })
@@ -154,15 +157,33 @@ export default function CarMarketplace() {
 
       // Try to fetch user profiles, but handle gracefully if table doesn't exist
       let userProfiles = []
-      try {
-        const { data: profiles } = await supabase
-          .from("user_profiles")
-          .select("id, first_name, last_name, avatar_url, phone")
-          .in("id", userIds)
-        userProfiles = profiles || []
-      } catch (profileError) {
-        console.warn("Could not fetch user profiles:", profileError)
-        // Continue without profiles
+      if (userIds.length > 0) {
+        try {
+          // Try user_profiles first
+          const { data: profiles, error: profilesError } = await supabase
+            .from("user_profiles")
+            .select("id, first_name, last_name, avatar_url, phone")
+            .in("id", userIds)
+
+          if (profilesError) {
+            console.warn("Could not fetch from user_profiles:", profilesError)
+            // Try profiles table as fallback
+            try {
+              const { data: fallbackProfiles } = await supabase
+                .from("profiles")
+                .select("id, first_name, last_name, avatar_url, phone")
+                .in("id", userIds)
+              userProfiles = fallbackProfiles || []
+            } catch (fallbackError) {
+              console.warn("Could not fetch from profiles either:", fallbackError)
+            }
+          } else {
+            userProfiles = profiles || []
+          }
+        } catch (profileError) {
+          console.warn("Could not fetch user profiles:", profileError)
+          // Continue without profiles
+        }
       }
 
       // Create a map for quick profile lookup
@@ -221,6 +242,20 @@ export default function CarMarketplace() {
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Show loading while auth is loading
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="flex items-center justify-center min-h-[50vh]">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading...</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   // Show location selector if user hasn't selected a location
