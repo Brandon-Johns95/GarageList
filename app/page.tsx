@@ -118,7 +118,7 @@ export default function CarMarketplace() {
       setIsLoading(true)
       setError("")
 
-      // Single optimized query with joined user profiles
+      // Fetch listings with photos and features only
       let query = supabase
         .from("listings")
         .select(`
@@ -130,12 +130,6 @@ export default function CarMarketplace() {
         ),
         listing_features (
           feature_name
-        ),
-        user_profiles!user_id (
-          first_name,
-          last_name,
-          avatar_url,
-          phone
         )
       `)
         .or("status.eq.active,status.eq.pending,status.is.null")
@@ -149,51 +143,69 @@ export default function CarMarketplace() {
         query = query.or(`location.ilike.%${selectedLocation.city}%,location.ilike.%${selectedLocation.state}%`)
       }
 
-      const { data: listings, error: listingsError } = await query.order("created_at", { ascending: false }).limit(50) // Add limit to improve performance
+      const { data: listings, error: listingsError } = await query.order("created_at", { ascending: false }).limit(50)
 
       if (listingsError) {
         throw new Error(`Failed to load listings: ${listingsError.message}`)
       }
 
-      // Transform the data with the joined user profiles
+      // Get unique user IDs from listings
+      const userIds = [...new Set(listings?.map((listing) => listing.user_id).filter(Boolean))]
+
+      // Fetch all user profiles in a single query
+      const { data: userProfiles } = await supabase
+        .from("user_profiles")
+        .select("id, first_name, last_name, avatar_url, phone")
+        .in("id", userIds)
+
+      // Create a map for quick profile lookup
+      const profileMap = new Map()
+      userProfiles?.forEach((profile) => {
+        profileMap.set(profile.id, profile)
+      })
+
+      // Transform the data with the user profiles
       const transformedListings =
-        listings?.map((listing) => ({
-          id: listing.id,
-          title: listing.title,
-          price: listing.price,
-          year: listing.year,
-          mileage: listing.mileage,
-          location: listing.location,
-          status: listing.status,
-          vehicleCategory: listing.vehicle_category || "cars",
-          images: listing.listing_photos
-            ?.sort((a, b) => a.sort_order - b.sort_order)
-            ?.map((photo) => photo.photo_url) || ["/placeholder.svg?height=200&width=300"],
-          seller: {
-            id: listing.user_id,
-            name: listing.user_profiles
-              ? `${listing.user_profiles.first_name || ""} ${listing.user_profiles.last_name || ""}`.trim() ||
-                "Anonymous Seller"
-              : "Anonymous Seller",
-            rating: 0, // Default since we removed non-existent columns
-            reviews: 0, // Default since we removed non-existent columns
-            avatar: listing.user_profiles?.avatar_url || "/placeholder.svg?height=40&width=40",
-            phone: listing.user_profiles?.phone,
-          },
-          features: listing.listing_features?.map((feature) => feature.feature_name) || [],
-          fuelType: listing.fuel_type || "Gasoline",
-          transmission: listing.transmission || "Automatic",
-          bodyType: listing.body_type || "Sedan",
-          condition: listing.condition || "Good",
-          description: listing.description || "",
-          exteriorColor: listing.exterior_color || "",
-          interiorColor: listing.interior_color || "",
-          vin: listing.vin || "",
-          negotiable: listing.negotiable || false,
-          tradeConsidered: listing.trade_considered || false,
-          financingAvailable: listing.financing_available || false,
-          publishedAt: listing.published_at,
-        })) || []
+        listings?.map((listing) => {
+          const userProfile = profileMap.get(listing.user_id)
+
+          return {
+            id: listing.id,
+            title: listing.title,
+            price: listing.price,
+            year: listing.year,
+            mileage: listing.mileage,
+            location: listing.location,
+            status: listing.status,
+            vehicleCategory: listing.vehicle_category || "cars",
+            images: listing.listing_photos
+              ?.sort((a, b) => a.sort_order - b.sort_order)
+              ?.map((photo) => photo.photo_url) || ["/placeholder.svg?height=200&width=300"],
+            seller: {
+              id: listing.user_id,
+              name: userProfile
+                ? `${userProfile.first_name || ""} ${userProfile.last_name || ""}`.trim() || "Anonymous Seller"
+                : "Anonymous Seller",
+              rating: 0, // Default since we removed non-existent columns
+              reviews: 0, // Default since we removed non-existent columns
+              avatar: userProfile?.avatar_url || "/placeholder.svg?height=40&width=40",
+              phone: userProfile?.phone,
+            },
+            features: listing.listing_features?.map((feature) => feature.feature_name) || [],
+            fuelType: listing.fuel_type || "Gasoline",
+            transmission: listing.transmission || "Automatic",
+            bodyType: listing.body_type || "Sedan",
+            condition: listing.condition || "Good",
+            description: listing.description || "",
+            exteriorColor: listing.exterior_color || "",
+            interiorColor: listing.interior_color || "",
+            vin: listing.vin || "",
+            negotiable: listing.negotiable || false,
+            tradeConsidered: listing.trade_considered || false,
+            financingAvailable: listing.financing_available || false,
+            publishedAt: listing.published_at,
+          }
+        }) || []
 
       setCarListings(transformedListings)
     } catch (error) {
