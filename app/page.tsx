@@ -152,9 +152,9 @@ export default function CarMarketplace() {
       // Get unique user IDs from listings
       const userIds = [...new Set(listings?.map((listing) => listing.user_id).filter(Boolean))]
 
-      // Fetch all user profiles in a single query
+      // Fetch all user profiles in a single query - try 'profiles' table instead
       const { data: userProfiles } = await supabase
-        .from("user_profiles")
+        .from("profiles")
         .select("id, first_name, last_name, avatar_url, phone")
         .in("id", userIds)
 
