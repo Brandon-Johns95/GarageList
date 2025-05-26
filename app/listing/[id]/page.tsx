@@ -1054,9 +1054,9 @@ Thank you!`)
                   {listing.negotiable && <p className="text-sm text-gray-600 mt-1">Price negotiable</p>}
                 </div>
 
-                {user ? (
-                  <>
-                    <div className="space-y-3">
+                <div className="space-y-3">
+                  {user ? (
+                    <>
                       <Button
                         className="w-full"
                         size="lg"
@@ -1094,34 +1094,34 @@ Thank you!`)
                           Email
                         </Button>
                       </div>
-                    </div>
 
-                    {/* Contact Info Display - Only for signed in users */}
-                    {(seller?.phone || seller?.email) && (
-                      <div className="mt-4 p-3 bg-gray-50 rounded-lg text-sm">
-                        {seller.phone && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-gray-600">Phone:</span>
-                            <span className="font-medium">{formatPhoneNumber(seller.phone)}</span>
-                          </div>
-                        )}
-                        {seller.email && (
-                          <div className="flex items-center justify-between mt-1">
-                            <span className="text-gray-600">Email:</span>
-                            <span className="font-medium text-xs">{seller.email}</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <div className="text-center">
-                    <p className="text-gray-600 mb-4">Sign in to contact the seller</p>
-                    <Button onClick={() => setShowSignInModal(true)} className="w-full bg-blue-600 hover:bg-blue-700">
-                      Contact Seller
-                    </Button>
-                  </div>
-                )}
+                      {/* Contact Info Display - Only for signed in users */}
+                      {(seller?.phone || seller?.email) && (
+                        <div className="mt-4 p-3 bg-gray-50 rounded-lg text-sm">
+                          {seller.phone && (
+                            <div className="flex items-center justify-between">
+                              <span className="text-gray-600">Phone:</span>
+                              <span className="font-medium">{formatPhoneNumber(seller.phone)}</span>
+                            </div>
+                          )}
+                          {seller.email && (
+                            <div className="flex items-center justify-between mt-1">
+                              <span className="text-gray-600">Email:</span>
+                              <span className="font-medium text-xs">{seller.email}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div className="text-center">
+                      <p className="text-gray-600 mb-4">Sign in to contact the seller</p>
+                      <Button onClick={() => setShowSignInModal(true)} className="w-full bg-blue-600 hover:bg-blue-700">
+                        Contact Seller
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
@@ -1142,14 +1142,14 @@ Thank you!`)
                     />
                   </div>
                   <div>
-                    <h3 className="font-semibold">{seller?.name || "Seller"}</h3>
+                    <h3 className="font-semibold">{user ? seller?.name || "Seller" : "Seller"}</h3>
                     <div className="flex items-center">
                       <Star className="h-4 w-4 fill-yellow-400 text-yellow-400 mr-1" />
                       <span className="text-sm text-gray-600">
                         {seller?.rating || 5.0} ({seller?.reviewCount || 0} reviews)
                       </span>
                     </div>
-                    {seller?.city && seller?.state && (
+                    {user && seller?.city && seller?.state && (
                       <p className="text-sm text-gray-600">
                         {seller.city}, {seller.state}
                       </p>
