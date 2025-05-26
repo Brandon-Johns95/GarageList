@@ -2,11 +2,11 @@
 
 import type React from "react"
 
-import { useState, useRef } from "react"
-import { Upload, X, Plus, DollarSign, Car, Camera, FileText, User, Check, AlertCircle } from "lucide-react"
+import { useState, useRef, useEffect } from "react"
+import { Upload, X, Plus, DollarSign, Car, Camera, FileText, Check, AlertCircle, TrendingUp } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 
 import { GarageListLogo } from "@/components/garage-list-logo"
 import { Button } from "@/components/ui/button"
@@ -19,6 +19,14 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/lib/auth-context"
+import { SignInModal } from "@/components/auth/sign-in-modal"
+import { SignUpModal } from "@/components/auth/sign-up-modal"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar"
+import { NotificationBell } from "@/components/notifications/notification-bell"
+import { Slider } from "@/components/ui/slider"
 
 const vehicleCategories = [
   { value: "cars-trucks", label: "Cars & Trucks", icon: "🚗" },
@@ -283,6 +291,53 @@ const exteriorColors = [
 
 const interiorColors = ["Black", "Gray", "Tan", "Beige", "Brown", "White", "Red", "Blue", "Green", "Other"]
 
+const bodyTypes = [
+  { value: "any", label: "Any Type" },
+  { value: "sedan", label: "Sedan" },
+  { value: "suv", label: "SUV" },
+  { value: "pickup", label: "Pickup Truck" },
+  { value: "coupe", label: "Coupe" },
+  { value: "hatchback", label: "Hatchback" },
+  { value: "convertible", label: "Convertible" },
+  { value: "wagon", label: "Wagon" },
+  { value: "van", label: "Van" },
+  { value: "motorcycle", label: "Motorcycle" },
+  { value: "boat", label: "Boat" },
+  { value: "rv", label: "RV/Camper" },
+  { value: "atv", label: "ATV/UTV" },
+]
+
+const makes = [
+  { value: "any", label: "Any Make" },
+  { value: "acura", label: "Acura" },
+  { value: "audi", label: "Audi" },
+  { value: "bmw", label: "BMW" },
+  { value: "buick", label: "Buick" },
+  { value: "cadillac", label: "Cadillac" },
+  { value: "chevrolet", label: "Chevrolet" },
+  { value: "chrysler", label: "Chrysler" },
+  { value: "dodge", label: "Dodge" },
+  { value: "ford", label: "Ford" },
+  { value: "gmc", label: "GMC" },
+  { value: "honda", label: "Honda" },
+  { value: "hyundai", label: "Hyundai" },
+  { value: "infiniti", label: "Infiniti" },
+  { value: "jeep", label: "Jeep" },
+  { value: "kia", label: "Kia" },
+  { value: "lexus", label: "Lexus" },
+  { value: "lincoln", label: "Lincoln" },
+  { value: "mazda", label: "Mazda" },
+  { value: "mercedes-benz", label: "Mercedes-Benz" },
+  { value: "mitsubishi", label: "Mitsubishi" },
+  { value: "nissan", label: "Nissan" },
+  { value: "ram", label: "Ram" },
+  { value: "subaru", label: "Subaru" },
+  { value: "tesla", label: "Tesla" },
+  { value: "toyota", label: "Toyota" },
+  { value: "volkswagen", label: "Volkswagen" },
+  { value: "volvo", label: "Volvo" },
+]
+
 // Helper function to safely parse numbers
 const safeParseInt = (value: string): number => {
   const parsed = Number.parseInt(value, 10)
@@ -299,8 +354,24 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 const MAX_PHOTOS = 20
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"]
 
+// Function to validate file
+const validateFile = (file: File): string | null => {
+  if (file.size > MAX_FILE_SIZE) {
+    return `File size exceeds the maximum allowed (${MAX_FILE_SIZE / 1024 / 1024}MB).`
+  }
+  if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
+    return `File type not supported. Please upload one of the following types: ${ACCEPTED_IMAGE_TYPES.join(", ")}.`
+  }
+  return null
+}
+
+// Add these state variables after the existing useState declarations
 export default function SellPage() {
+  const { user, profile, loading: authLoading, signOut } = useAuth()
+  const [showSignIn, setShowSignIn] = useState(false)
+  const [showSignUp, setShowSignUp] = useState(false)
   const [currentStep, setCurrentStep] = useState(1)
+  const currentYear = new Date().getFullYear()
   const [formData, setFormData] = useState({
     // Vehicle Category
     vehicleCategory: "",
@@ -330,30 +401,129 @@ export default function SellPage() {
     description: "",
     selectedFeatures: [] as string[],
 
-    // Contact & Location
-    firstName: "",
-    lastName: "",
-    email: "",
-    phone: "",
-    city: "",
-    state: "",
-    zipCode: "",
-
     // Additional
     negotiable: false,
     tradeConsidered: false,
     financingAvailable: false,
+
+    // Location
+    state: "",
+    city: "",
+  })
+
+  const [availableMakes, setAvailableMakes] = useState<Array<{ id: string; name: string }>>([])
+  const [availableModels, setAvailableModels] = useState<Array<{ id: string; name: string; body_type: string }>>([])
+  const [isLoadingMakes, setIsLoadingMakes] = useState(false)
+  const [isLoadingModels, setIsLoadingModels] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+
+  const [tradePreferences, setTradePreferences] = useState({
+    bodyTypes: [] as string[],
+    yearRange: [2010, currentYear],
+    makes: [] as string[],
+    models: [] as string[],
+    priceRange: [0, 100000],
+    distanceRange: 50, // miles
+    mileageRange: [0, 200000],
+    fuelTypes: [] as string[],
+    transmissionTypes: [] as string[],
+    conditions: [] as string[],
   })
 
   const [uploadedPhotos, setUploadedPhotos] = useState<string[]>([])
   const [isUploading, setIsUploading] = useState(false)
   const [uploadError, setUploadError] = useState("")
+  const [isPublishing, setIsPublishing] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const totalSteps = 6
+  const totalSteps = 5 // Reduced from 6 since we'll use profile data for contact info
   const progress = (currentStep / totalSteps) * 100
 
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const editListingId = searchParams.get("edit")
+  const isEditMode = !!editListingId
+
+  // Redirect to sign in if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      setShowSignIn(true)
+    }
+  }, [authLoading, user])
+
+  // Load existing listing data when in edit mode
+  useEffect(() => {
+    if (isEditMode && editListingId && user) {
+      loadExistingListing(editListingId)
+    }
+  }, [isEditMode, editListingId, user])
+
+  const loadExistingListing = async (listingId: string) => {
+    try {
+      setIsLoading(true)
+
+      const { data: listingData, error } = await supabase
+        .from("listings")
+        .select(`
+          *,
+          listing_photos (photo_url, is_main_photo, sort_order),
+          listing_features (feature_name)
+        `)
+        .eq("id", listingId)
+        .eq("seller_id", user.id)
+        .single()
+
+      if (error) throw error
+
+      // Populate form data with existing listing
+      setFormData({
+        vehicleCategory: listingData.vehicle_category || "cars-trucks",
+        make: listingData.make || "",
+        model: listingData.model || "",
+        year: listingData.year?.toString() || "",
+        mileage: listingData.mileage?.toString() || "",
+        vin: listingData.vin || "",
+        bodyType: listingData.body_type || "",
+        fuelType: listingData.fuel_type || "",
+        transmission: listingData.transmission || "",
+        exteriorColor: listingData.exterior_color || "",
+        customExteriorColor: "",
+        interiorColor: listingData.interior_color || "",
+        customInteriorColor: "",
+        price: listingData.price?.toString() || "",
+        condition: getConditionValue(listingData.condition),
+        photos: listingData.listing_photos?.sort((a, b) => a.sort_order - b.sort_order)?.map((p) => p.photo_url) || [],
+        description: listingData.description || "",
+        selectedFeatures: listingData.listing_features?.map((f) => f.feature_name) || [],
+        negotiable: Boolean(listingData.negotiable),
+        tradeConsidered: Boolean(listingData.trade_considered),
+        financingAvailable: Boolean(listingData.financing_available),
+        state: "",
+        city: "",
+      })
+
+      // Load trade preferences if they exist
+      if (listingData.trade_preferences) {
+        setTradePreferences(listingData.trade_preferences)
+      }
+
+      // Load photos
+      const photos =
+        listingData.listing_photos?.sort((a, b) => a.sort_order - b.sort_order)?.map((p) => p.photo_url) || []
+      setUploadedPhotos(photos)
+    } catch (error) {
+      console.error("Error loading listing:", error)
+      alert("Failed to load listing for editing")
+      router.push("/dashboard")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const getConditionValue = (conditionLabel: string) => {
+    const condition = conditions.find((c) => c.label === conditionLabel)
+    return condition ? condition.value : "good"
+  }
 
   const handleInputChange = (field: string, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -368,27 +538,6 @@ export default function SellPage() {
     }))
   }
 
-  // Convert file to data URL for storage
-  const fileToDataURL = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = (e) => resolve(e.target?.result as string)
-      reader.onerror = reject
-      reader.readAsDataURL(file)
-    })
-  }
-
-  // Validate file before upload
-  const validateFile = (file: File): string | null => {
-    if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-      return "Please upload only JPEG, PNG, or WebP images."
-    }
-    if (file.size > MAX_FILE_SIZE) {
-      return "File size must be less than 10MB."
-    }
-    return null
-  }
-
   // Handle photo upload from device
   const handlePhotoUpload = () => {
     if (uploadedPhotos.length >= MAX_PHOTOS) {
@@ -398,7 +547,7 @@ export default function SellPage() {
     fileInputRef.current?.click()
   }
 
-  // Handle file selection
+  // Handle file selection and upload to Supabase
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files
     if (!files || files.length === 0) return
@@ -424,11 +573,29 @@ export default function SellPage() {
         }
 
         try {
-          const dataURL = await fileToDataURL(file)
-          newPhotos.push(dataURL)
+          // Generate unique filename
+          const fileExt = file.name.split(".").pop()
+          const fileName = `temp-${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
+          const filePath = `temp/${fileName}`
+
+          // Upload to Supabase Storage
+          const { data, error } = await supabase.storage.from("listing-photos").upload(filePath, file)
+
+          if (error) {
+            console.error("Error uploading photo:", error)
+            setUploadError("Error uploading photo. Please try again.")
+            continue
+          }
+
+          // Get public URL
+          const {
+            data: { publicUrl },
+          } = supabase.storage.from("listing-photos").getPublicUrl(filePath)
+
+          newPhotos.push(publicUrl)
         } catch (error) {
-          console.error("Error converting file to data URL:", error)
-          setUploadError("Error processing image. Please try again.")
+          console.error("Error uploading photo:", error)
+          setUploadError("Error uploading photo. Please try again.")
         }
       }
 
@@ -448,7 +615,22 @@ export default function SellPage() {
     }
   }
 
-  const removePhoto = (index: number) => {
+  const removePhoto = async (index: number) => {
+    const photoUrl = uploadedPhotos[index]
+
+    // Extract file path from URL to delete from storage
+    if (photoUrl && photoUrl.includes("/temp/")) {
+      try {
+        const urlParts = photoUrl.split("/temp/")
+        if (urlParts.length > 1) {
+          const filePath = `temp/${urlParts[1]}`
+          await supabase.storage.from("listing-photos").remove([filePath])
+        }
+      } catch (error) {
+        console.error("Error deleting photo from storage:", error)
+      }
+    }
+
     const newPhotos = uploadedPhotos.filter((_, i) => i !== index)
     setUploadedPhotos(newPhotos)
     setFormData((prev) => ({ ...prev, photos: newPhotos }))
@@ -473,6 +655,252 @@ export default function SellPage() {
 
   const getCurrentFeatures = () => {
     return features[formData.vehicleCategory as keyof typeof features] || features["cars-trucks"]
+  }
+
+  const handleTradePreferenceChange = (field: string, value: any) => {
+    setTradePreferences((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const handleTradeArrayToggle = (field: string, value: string) => {
+    setTradePreferences((prev) => ({
+      ...prev,
+      [field]: prev[field].includes(value) ? prev[field].filter((item) => item !== value) : [...prev[field], value],
+    }))
+  }
+
+  // Add these functions after the existing helper functions
+  const fetchMakes = async (category: string) => {
+    setIsLoadingMakes(true)
+    try {
+      const { data, error } = await supabase
+        .from("vehicle_makes")
+        .select("id, name")
+        .eq("category", category)
+        .order("name")
+
+      if (error) throw error
+      setAvailableMakes(data || [])
+    } catch (error) {
+      console.error("Error fetching makes:", error)
+      setAvailableMakes([])
+    } finally {
+      setIsLoadingMakes(false)
+    }
+  }
+
+  const fetchModels = async (makeId: string, year: string) => {
+    if (!makeId || !year) {
+      setAvailableModels([])
+      return
+    }
+
+    setIsLoadingModels(true)
+    try {
+      const yearNum = Number.parseInt(year)
+      const { data, error } = await supabase
+        .from("vehicle_models")
+        .select("id, name, body_type")
+        .eq("make_id", makeId)
+        .lte("year_start", yearNum)
+        .or(`year_end.is.null,year_end.gte.${yearNum}`)
+        .order("name")
+
+      if (error) throw error
+      setAvailableModels(data || [])
+    } catch (error) {
+      console.error("Error fetching models:", error)
+      setAvailableModels([])
+    } finally {
+      setIsLoadingModels(false)
+    }
+  }
+
+  // Add this useEffect after the existing useEffect
+  useEffect(() => {
+    if (formData.vehicleCategory) {
+      fetchMakes(formData.vehicleCategory)
+      // Reset make and model when category changes
+      setFormData((prev) => ({ ...prev, make: "", model: "" }))
+      setAvailableModels([])
+    }
+  }, [formData.vehicleCategory])
+
+  // Add this useEffect to fetch models when make or year changes
+  useEffect(() => {
+    if (formData.make && formData.year) {
+      const selectedMake = availableMakes.find((make) => make.name.toLowerCase() === formData.make)
+      if (selectedMake) {
+        fetchModels(selectedMake.id, formData.year)
+      }
+    } else {
+      setAvailableModels([])
+    }
+  }, [formData.make, formData.year, availableMakes])
+
+  const handlePublish = async () => {
+    if (!user) {
+      setShowSignIn(true)
+      return
+    }
+
+    // Validate required fields
+    if (!formData.make || !formData.model || !formData.year || !formData.price) {
+      alert("Please fill in all required fields")
+      return
+    }
+
+    setIsPublishing(true)
+
+    try {
+      const listingData = {
+        title: `${formData.year} ${formData.make.charAt(0).toUpperCase() + formData.make.slice(1)} ${formData.model}`,
+        price: safeParseInt(formData.price),
+        year: safeParseInt(formData.year),
+        make: formData.make,
+        model: formData.model,
+        mileage: safeParseInt(formData.mileage),
+        location: formData.city && formData.state ? `${formData.city}, ${formData.state}` : "Location not specified",
+        condition: conditions.find((c) => c.value === formData.condition)?.label || "Good",
+        description: safeString(formData.description),
+        vehicle_category: formData.vehicleCategory,
+        body_type: formData.bodyType,
+        fuel_type: formData.fuelType,
+        transmission: formData.transmission,
+        exterior_color: formData.exteriorColor === "other" ? formData.customExteriorColor : formData.exteriorColor,
+        interior_color: formData.interiorColor === "other" ? formData.customInteriorColor : formData.interiorColor,
+        vin: safeString(formData.vin),
+        negotiable: formData.negotiable,
+        trade_considered: formData.tradeConsidered,
+        financing_available: formData.financingAvailable,
+        seller_id: user.id,
+        trade_preferences: formData.tradeConsidered ? tradePreferences : null,
+        updated_at: new Date().toISOString(),
+      }
+
+      let listing
+
+      if (isEditMode && editListingId) {
+        // Update existing listing
+        const { data, error } = await supabase
+          .from("listings")
+          .update(listingData)
+          .eq("id", editListingId)
+          .eq("seller_id", user.id)
+          .select()
+          .single()
+
+        if (error) throw error
+        listing = data
+
+        // Delete existing photos and features
+        await supabase.from("listing_photos").delete().eq("listing_id", editListingId)
+        await supabase.from("listing_features").delete().eq("listing_id", editListingId)
+      } else {
+        // Create new listing
+        listingData.published_at = new Date().toISOString()
+        listingData.expires_at = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
+
+        const { data, error } = await supabase.from("listings").insert([listingData]).select().single()
+
+        if (error) throw error
+        listing = data
+      }
+
+      // Handle photos (existing logic)
+      if (uploadedPhotos.length > 0) {
+        for (let i = 0; i < uploadedPhotos.length; i++) {
+          const photoUrl = uploadedPhotos[i]
+
+          if (isEditMode) {
+            // For edit mode, photos are already permanent
+            await supabase.from("listing_photos").insert({
+              listing_id: listing.id,
+              photo_url: photoUrl,
+              is_main_photo: i === 0,
+              sort_order: i,
+            })
+          } else {
+            // For new listings, move from temp to permanent
+            try {
+              // Extract temp file path
+              const urlParts = photoUrl.split("/temp/")
+              if (urlParts.length > 1) {
+                const tempFileName = urlParts[1]
+                const tempFilePath = `temp/${tempFileName}`
+
+                // Generate permanent file path
+                const fileExt = tempFileName.split(".").pop()
+                const permanentFileName = `${listing.id}-${i}.${fileExt}`
+                const permanentFilePath = `listings/${permanentFileName}`
+
+                // Move file from temp to permanent location
+                const { data: moveData, error: moveError } = await supabase.storage
+                  .from("listing-photos")
+                  .move(tempFilePath, permanentFilePath)
+
+                if (moveError) {
+                  console.error("Error moving photo:", moveError)
+                  continue
+                }
+
+                // Get new public URL
+                const {
+                  data: { publicUrl },
+                } = supabase.storage.from("listing-photos").getPublicUrl(permanentFilePath)
+
+                // Insert photo record into database
+                await supabase.from("listing_photos").insert({
+                  listing_id: listing.id,
+                  photo_url: publicUrl,
+                  is_main_photo: i === 0,
+                  sort_order: i,
+                })
+              }
+            } catch (error) {
+              console.error("Error processing photo:", error)
+            }
+          }
+        }
+      }
+
+      // Handle features (existing logic)
+      if (formData.selectedFeatures.length > 0) {
+        const featureInserts = formData.selectedFeatures.map((feature) => ({
+          listing_id: listing.id,
+          feature_name: feature,
+        }))
+
+        await supabase.from("listing_features").insert(featureInserts)
+      }
+
+      console.log(`Listing ${isEditMode ? "updated" : "published"} successfully:`, listing)
+
+      // Navigate to appropriate page
+      if (isEditMode) {
+        router.push(`/listing/${listing.id}`)
+      } else {
+        router.push(`/sell/success?id=${listing.id}`)
+      }
+    } catch (error) {
+      console.error(`Error ${isEditMode ? "updating" : "publishing"} listing:`, error)
+      alert(
+        `There was an error ${isEditMode ? "updating" : "publishing"} your listing: ${error instanceof Error ? error.message : "Unknown error"}`,
+      )
+    } finally {
+      setIsPublishing(false)
+    }
+  }
+
+  // Show loading while checking auth
+  if (authLoading || isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
   }
 
   const renderStepContent = () => {
@@ -520,29 +948,19 @@ export default function SellPage() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <Label htmlFor="make">Make *</Label>
-                <Select value={formData.make} onValueChange={(value) => handleInputChange("make", value)}>
+                <Label htmlFor="bodyType">Type *</Label>
+                <Select value={formData.bodyType} onValueChange={(value) => handleInputChange("bodyType", value)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select make" />
+                    <SelectValue placeholder="Select type" />
                   </SelectTrigger>
                   <SelectContent>
-                    {getCurrentVehicleData().makes.map((make) => (
-                      <SelectItem key={make} value={make.toLowerCase()}>
-                        {make}
+                    {getCurrentVehicleData().bodyTypes.map((type) => (
+                      <SelectItem key={type} value={type.toLowerCase()}>
+                        {type}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="model">Model *</Label>
-                <Input
-                  id="model"
-                  value={formData.model}
-                  onChange={(e) => handleInputChange("model", e.target.value)}
-                  placeholder="e.g., Civic, Sportster, Winnebago"
-                />
               </div>
 
               <div>
@@ -562,26 +980,23 @@ export default function SellPage() {
               </div>
 
               <div>
-                <Label htmlFor="mileage">{formData.vehicleCategory === "boats" ? "Engine Hours" : "Mileage"} *</Label>
-                <Input
-                  id="mileage"
-                  type="number"
-                  value={formData.mileage}
-                  onChange={(e) => handleInputChange("mileage", e.target.value)}
-                  placeholder={formData.vehicleCategory === "boats" ? "e.g., 250" : "e.g., 45000"}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="bodyType">Type *</Label>
-                <Select value={formData.bodyType} onValueChange={(value) => handleInputChange("bodyType", value)}>
+                <Label htmlFor="make">Make *</Label>
+                <Select
+                  value={formData.make}
+                  onValueChange={(value) => {
+                    handleInputChange("make", value)
+                    // Reset model when make changes
+                    handleInputChange("model", "")
+                  }}
+                  disabled={isLoadingMakes}
+                >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
+                    <SelectValue placeholder={isLoadingMakes ? "Loading makes..." : "Select make"} />
                   </SelectTrigger>
                   <SelectContent>
-                    {getCurrentVehicleData().bodyTypes.map((type) => (
-                      <SelectItem key={type} value={type.toLowerCase()}>
-                        {type}
+                    {availableMakes.map((make) => (
+                      <SelectItem key={make.id} value={make.name.toLowerCase()}>
+                        {make.name}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -589,24 +1004,111 @@ export default function SellPage() {
               </div>
 
               <div>
-                <Label htmlFor="fuelType">{formData.vehicleCategory === "boats" ? "Engine Type" : "Fuel Type"} *</Label>
-                <Select value={formData.fuelType} onValueChange={(value) => handleInputChange("fuelType", value)}>
+                <Label htmlFor="model">Model *</Label>
+                <Select
+                  value={formData.model}
+                  onValueChange={(value) => handleInputChange("model", value)}
+                  disabled={isLoadingModels || !formData.make || !formData.year}
+                >
                   <SelectTrigger>
                     <SelectValue
-                      placeholder={formData.vehicleCategory === "boats" ? "Select engine type" : "Select fuel type"}
+                      placeholder={
+                        !formData.make || !formData.year
+                          ? "Select make and year first"
+                          : isLoadingModels
+                            ? "Loading models..."
+                            : "Select model"
+                      }
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    {getCurrentVehicleData().fuelTypes.map((type) => (
-                      <SelectItem key={type} value={type.toLowerCase()}>
-                        {type}
+                    {availableModels.map((model) => (
+                      <SelectItem key={model.id} value={model.name.toLowerCase()}>
+                        {model.name}
+                        {model.body_type && <span className="text-gray-500 ml-2">({model.body_type})</span>}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
+                {availableModels.length === 0 && formData.make && formData.year && !isLoadingModels && (
+                  <p className="text-sm text-gray-500 mt-1">
+                    No models found for {formData.make} {formData.year}. You can still proceed with a custom model.
+                  </p>
+                )}
               </div>
 
-              {(formData.vehicleCategory === "cars-trucks" || formData.vehicleCategory === "rvs") && (
+              {availableModels.length === 0 && formData.make && formData.year && !isLoadingModels && (
+                <div>
+                  <Label htmlFor="customModel">Custom Model</Label>
+                  <Input
+                    id="customModel"
+                    value={formData.model}
+                    onChange={(e) => handleInputChange("model", e.target.value)}
+                    placeholder="Enter model name manually"
+                  />
+                </div>
+              )}
+
+              {/* Only show mileage for motorized RVs and all other vehicle types */}
+              {!(
+                formData.vehicleCategory === "rvs" &&
+                (formData.bodyType === "travel trailer" ||
+                  formData.bodyType === "fifth wheel" ||
+                  formData.bodyType === "toy hauler" ||
+                  formData.bodyType === "pop-up camper" ||
+                  formData.bodyType === "truck camper")
+              ) && (
+                <div>
+                  <Label htmlFor="mileage">{formData.vehicleCategory === "boats" ? "Engine Hours" : "Mileage"} *</Label>
+                  <Input
+                    id="mileage"
+                    type="number"
+                    value={formData.mileage}
+                    onChange={(e) => handleInputChange("mileage", e.target.value)}
+                    placeholder={formData.vehicleCategory === "boats" ? "e.g., 250" : "e.g., 45000"}
+                  />
+                </div>
+              )}
+
+              {/* Only show fuel type for motorized RVs and all other vehicle types */}
+              {!(
+                formData.vehicleCategory === "rvs" &&
+                (formData.bodyType === "travel trailer" ||
+                  formData.bodyType === "fifth wheel" ||
+                  formData.bodyType === "toy hauler" ||
+                  formData.bodyType === "pop-up camper" ||
+                  formData.bodyType === "truck camper")
+              ) && (
+                <div>
+                  <Label htmlFor="fuelType">
+                    {formData.vehicleCategory === "boats" ? "Engine Type" : "Fuel Type"} *
+                  </Label>
+                  <Select value={formData.fuelType} onValueChange={(value) => handleInputChange("fuelType", value)}>
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={formData.vehicleCategory === "boats" ? "Select engine type" : "Select fuel type"}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {getCurrentVehicleData().fuelTypes.map((type) => (
+                        <SelectItem key={type} value={type.toLowerCase()}>
+                          {type}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {(formData.vehicleCategory === "cars-trucks" ||
+                (formData.vehicleCategory === "rvs" &&
+                  !(
+                    formData.bodyType === "travel trailer" ||
+                    formData.bodyType === "fifth wheel" ||
+                    formData.bodyType === "toy hauler" ||
+                    formData.bodyType === "pop-up camper" ||
+                    formData.bodyType === "truck camper"
+                  ))) && (
                 <div>
                   <Label htmlFor="transmission">Transmission *</Label>
                   <Select
@@ -637,34 +1139,51 @@ export default function SellPage() {
                 />
               </div>
 
-              <div>
-                <Label htmlFor="exteriorColor">Exterior Color</Label>
-                <Select
-                  value={formData.exteriorColor}
-                  onValueChange={(value) => handleInputChange("exteriorColor", value)}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select exterior color" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {exteriorColors.map((color) => (
-                      <SelectItem key={color} value={color.toLowerCase()}>
-                        {color}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {formData.exteriorColor === "other" && (
-                  <Input
-                    className="mt-2"
-                    value={formData.customExteriorColor}
-                    onChange={(e) => handleInputChange("customExteriorColor", e.target.value)}
-                    placeholder="Enter custom exterior color"
-                  />
-                )}
-              </div>
+              {!(
+                formData.vehicleCategory === "rvs" &&
+                (formData.bodyType === "travel trailer" ||
+                  formData.bodyType === "fifth wheel" ||
+                  formData.bodyType === "toy hauler" ||
+                  formData.bodyType === "pop-up camper" ||
+                  formData.bodyType === "truck camper")
+              ) && (
+                <div>
+                  <Label htmlFor="exteriorColor">Exterior Color</Label>
+                  <Select
+                    value={formData.exteriorColor}
+                    onValueChange={(value) => handleInputChange("exteriorColor", value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select exterior color" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {exteriorColors.map((color) => (
+                        <SelectItem key={color} value={color.toLowerCase()}>
+                          {color}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {formData.exteriorColor === "other" && (
+                    <Input
+                      className="mt-2"
+                      value={formData.customExteriorColor}
+                      onChange={(e) => handleInputChange("customExteriorColor", e.target.value)}
+                      placeholder="Enter custom exterior color"
+                    />
+                  )}
+                </div>
+              )}
 
-              {(formData.vehicleCategory === "cars-trucks" || formData.vehicleCategory === "rvs") && (
+              {(formData.vehicleCategory === "cars-trucks" ||
+                (formData.vehicleCategory === "rvs" &&
+                  !(
+                    formData.bodyType === "travel trailer" ||
+                    formData.bodyType === "fifth wheel" ||
+                    formData.bodyType === "toy hauler" ||
+                    formData.bodyType === "pop-up camper" ||
+                    formData.bodyType === "truck camper"
+                  ))) && (
                 <div>
                   <Label htmlFor="interiorColor">Interior Color</Label>
                   <Select
@@ -771,6 +1290,219 @@ export default function SellPage() {
                   </div>
                 </div>
               </div>
+
+              {formData.tradeConsidered && (
+                <div className="md:col-span-2 mt-6 p-6 bg-blue-50 rounded-lg border border-blue-200">
+                  <h3 className="text-lg font-semibold text-blue-900 mb-4">Trade Preferences</h3>
+                  <p className="text-sm text-blue-700 mb-6">
+                    Tell us what you'd be interested in trading for. This helps potential traders find you.
+                  </p>
+
+                  <div className="space-y-6">
+                    {/* Body Types */}
+                    <div>
+                      <Label className="text-blue-900">Interested in these vehicle types:</Label>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-2">
+                        {bodyTypes.map((type) => (
+                          <div key={type.value} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`trade-${type.value}`}
+                              checked={tradePreferences.bodyTypes.includes(type.value)}
+                              onCheckedChange={() => handleTradeArrayToggle("bodyTypes", type.value)}
+                            />
+                            <Label htmlFor={`trade-${type.value}`} className="text-sm text-blue-800">
+                              {type.label}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Year Range */}
+                    <div>
+                      <Label className="text-blue-900">Year Range:</Label>
+                      <div className="space-y-4 mt-2">
+                        <Slider
+                          value={tradePreferences.yearRange}
+                          onValueChange={(value) => handleTradePreferenceChange("yearRange", value)}
+                          min={1990}
+                          max={currentYear}
+                          step={1}
+                          className="mb-2"
+                          showTicks={true}
+                          tickPositions={[1990, currentYear]}
+                        />
+                        <div className="flex justify-between text-sm text-blue-700">
+                          <span>{tradePreferences.yearRange[0]}</span>
+                          <span>{tradePreferences.yearRange[1]}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Makes */}
+                    <div>
+                      <Label className="text-blue-900">Interested in these makes:</Label>
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mt-2 max-h-40 overflow-y-auto">
+                        {makes.map((make) => (
+                          <div key={make.value} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`trade-make-${make.value}`}
+                              checked={tradePreferences.makes.includes(make.value)}
+                              onCheckedChange={() => handleTradeArrayToggle("makes", make.value)}
+                            />
+                            <Label htmlFor={`trade-make-${make.value}`} className="text-sm text-blue-800">
+                              {make.label}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Price Range */}
+                    <div>
+                      <Label className="text-blue-900">Trade Value Range:</Label>
+                      <div className="space-y-4 mt-2">
+                        <Slider
+                          value={tradePreferences.priceRange}
+                          onValueChange={(value) => handleTradePreferenceChange("priceRange", value)}
+                          min={0}
+                          max={200000}
+                          step={5000}
+                          className="mb-2"
+                          showTicks={true}
+                          tickPositions={[0, 200000]}
+                        />
+                        <div className="flex justify-between text-sm text-blue-700">
+                          <span>${tradePreferences.priceRange[0].toLocaleString()}</span>
+                          <span>${tradePreferences.priceRange[1].toLocaleString()}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Mileage Range */}
+                    <div>
+                      <Label className="text-blue-900">Maximum Mileage:</Label>
+                      <div className="space-y-4 mt-2">
+                        <Slider
+                          value={tradePreferences.mileageRange}
+                          onValueChange={(value) => handleTradePreferenceChange("mileageRange", value)}
+                          min={0}
+                          max={300000}
+                          step={10000}
+                          className="mb-2"
+                          showTicks={true}
+                          tickPositions={[0, 300000]}
+                        />
+                        <div className="flex justify-between text-sm text-blue-700">
+                          <span>{tradePreferences.mileageRange[0].toLocaleString()} miles</span>
+                          <span>{tradePreferences.mileageRange[1].toLocaleString()} miles</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Distance Range */}
+                    <div>
+                      <Label className="text-blue-900">Maximum Distance for Trade:</Label>
+                      <div className="space-y-4 mt-2">
+                        <Slider
+                          value={[tradePreferences.distanceRange]}
+                          onValueChange={(value) => handleTradePreferenceChange("distanceRange", value[0])}
+                          min={10}
+                          max={500}
+                          step={10}
+                          className="mb-2"
+                          showTicks={true}
+                          tickPositions={[10, 500]}
+                        />
+                        <div className="text-center text-sm text-blue-700">
+                          Within {tradePreferences.distanceRange} miles
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Fuel Types */}
+                    <div>
+                      <Label className="text-blue-900">Fuel Type Preferences:</Label>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
+                        {["Gasoline", "Diesel", "Electric", "Hybrid", "Plug-in Hybrid"].map((fuel) => (
+                          <div key={fuel} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`trade-fuel-${fuel}`}
+                              checked={tradePreferences.fuelTypes.includes(fuel.toLowerCase())}
+                              onCheckedChange={() => handleTradeArrayToggle("fuelTypes", fuel.toLowerCase())}
+                            />
+                            <Label htmlFor={`trade-fuel-${fuel}`} className="text-sm text-blue-800">
+                              {fuel}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Transmission Types */}
+                    <div>
+                      <Label className="text-blue-900">Transmission Preferences:</Label>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
+                        {transmissionTypes.map((trans) => (
+                          <div key={trans} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`trade-trans-${trans}`}
+                              checked={tradePreferences.transmissionTypes.includes(trans.toLowerCase())}
+                              onCheckedChange={() => handleTradeArrayToggle("transmissionTypes", trans.toLowerCase())}
+                            />
+                            <Label htmlFor={`trade-trans-${trans}`} className="text-sm text-blue-800">
+                              {trans}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Condition Preferences */}
+                    <div>
+                      <Label className="text-blue-900">Acceptable Conditions:</Label>
+                      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-2">
+                        {conditions.map((condition) => (
+                          <div key={condition.value} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`trade-condition-${condition.value}`}
+                              checked={tradePreferences.conditions.includes(condition.value)}
+                              onCheckedChange={() => handleTradeArrayToggle("conditions", condition.value)}
+                            />
+                            <Label htmlFor={`trade-condition-${condition.value}`} className="text-sm text-blue-800">
+                              {condition.label}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    {/* ADD THIS: Trade matching button */}
+                    <div className="pt-4 border-t border-blue-200">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="font-medium text-blue-900">Find Trade Matches</h4>
+                          <p className="text-sm text-blue-700">See vehicles that match your trade preferences</p>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          className="border-blue-300 text-blue-700 hover:bg-blue-100"
+                          onClick={() => {
+                            // Save current form data to localStorage for later use
+                            localStorage.setItem("pendingListing", JSON.stringify(formData))
+                            localStorage.setItem("pendingTradePreferences", JSON.stringify(tradePreferences))
+                            // Navigate to trade matches page
+                            router.push("/trade-matches/preview")
+                          }}
+                        >
+                          <TrendingUp className="h-4 w-4 mr-2" />
+                          Preview Trade Matches
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )
@@ -931,157 +1663,121 @@ export default function SellPage() {
                   ))}
                 </div>
               </div>
-            </div>
-          </div>
-        )
-
-      case 6:
-        return (
-          <div className="space-y-6">
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900 mb-2">Contact & Location</h2>
-              <p className="text-gray-600">How can buyers reach you?</p>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <Label htmlFor="firstName">First Name *</Label>
-                <Input
-                  id="firstName"
-                  value={formData.firstName}
-                  onChange={(e) => handleInputChange("firstName", e.target.value)}
-                  placeholder="John"
-                />
-              </div>
 
               <div>
-                <Label htmlFor="lastName">Last Name *</Label>
-                <Input
-                  id="lastName"
-                  value={formData.lastName}
-                  onChange={(e) => handleInputChange("lastName", e.target.value)}
-                  placeholder="Doe"
-                />
+                <Label>Vehicle Location *</Label>
+                <p className="text-sm text-gray-600 mb-3">Where is this vehicle located?</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="state">State *</Label>
+                    <Select value={formData.state} onValueChange={(value) => handleInputChange("state", value)}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select state" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {[
+                          "Alabama",
+                          "Alaska",
+                          "Arizona",
+                          "Arkansas",
+                          "California",
+                          "Colorado",
+                          "Connecticut",
+                          "Delaware",
+                          "Florida",
+                          "Georgia",
+                          "Hawaii",
+                          "Idaho",
+                          "Illinois",
+                          "Indiana",
+                          "Iowa",
+                          "Kansas",
+                          "Kentucky",
+                          "Louisiana",
+                          "Maine",
+                          "Maryland",
+                          "Massachusetts",
+                          "Michigan",
+                          "Minnesota",
+                          "Mississippi",
+                          "Missouri",
+                          "Montana",
+                          "Nebraska",
+                          "Nevada",
+                          "New Hampshire",
+                          "New Jersey",
+                          "New Mexico",
+                          "New York",
+                          "North Carolina",
+                          "North Dakota",
+                          "Ohio",
+                          "Oklahoma",
+                          "Oregon",
+                          "Pennsylvania",
+                          "Rhode Island",
+                          "South Carolina",
+                          "South Dakota",
+                          "Tennessee",
+                          "Texas",
+                          "Utah",
+                          "Vermont",
+                          "Virginia",
+                          "Washington",
+                          "West Virginia",
+                          "Wisconsin",
+                          "Wyoming",
+                        ].map((state) => (
+                          <SelectItem key={state} value={state}>
+                            {state}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="city">City *</Label>
+                    <Input
+                      id="city"
+                      value={formData.city}
+                      onChange={(e) => handleInputChange("city", e.target.value)}
+                      placeholder="Enter city name"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <Label htmlFor="email">Email *</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange("email", e.target.value)}
-                  placeholder="john@example.com"
-                />
+              {/* Contact Info Preview */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium text-gray-900 mb-2">Contact Information</h4>
+                <p className="text-sm text-gray-600 mb-2">
+                  Your listing will use the following contact information from your profile:
+                </p>
+                <div className="text-sm">
+                  <p>
+                    <strong>Name:</strong> {profile?.first_name} {profile?.last_name}
+                  </p>
+                  <p>
+                    <strong>Email:</strong> {profile?.email}
+                  </p>
+                  {profile?.phone && (
+                    <p>
+                      <strong>Phone:</strong> {profile.phone}
+                    </p>
+                  )}
+                  {profile?.city && profile?.state && (
+                    <p>
+                      <strong>Location:</strong> {profile.city}, {profile.state}
+                    </p>
+                  )}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">You can update this information in your profile settings.</p>
               </div>
-
-              <div>
-                <Label htmlFor="phone">Phone Number *</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  value={formData.phone}
-                  onChange={(e) => handleInputChange("phone", e.target.value)}
-                  placeholder="(555) 123-4567"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="city">City *</Label>
-                <Input
-                  id="city"
-                  value={formData.city}
-                  onChange={(e) => handleInputChange("city", e.target.value)}
-                  placeholder="San Francisco"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="state">State *</Label>
-                <Input
-                  id="state"
-                  value={formData.state}
-                  onChange={(e) => handleInputChange("state", e.target.value)}
-                  placeholder="CA"
-                />
-              </div>
-
-              <div className="md:col-span-2">
-                <Label htmlFor="zipCode">ZIP Code *</Label>
-                <Input
-                  id="zipCode"
-                  value={formData.zipCode}
-                  onChange={(e) => handleInputChange("zipCode", e.target.value)}
-                  placeholder="94102"
-                  className="md:w-48"
-                />
-              </div>
-            </div>
-
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h4 className="font-medium text-gray-900 mb-2">Privacy & Safety</h4>
-              <ul className="text-sm text-gray-600 space-y-1">
-                <li>• Your contact information will only be shared with serious buyers</li>
-                <li>• We recommend meeting in public places for test drives</li>
-                <li>• Never share personal financial information</li>
-              </ul>
             </div>
           </div>
         )
 
       default:
         return null
-    }
-  }
-
-  const handlePublish = () => {
-    // Validate required fields
-    if (!formData.make || !formData.model || !formData.year || !formData.price) {
-      alert("Please fill in all required fields")
-      return
-    }
-
-    // Create a listing object from the form data with safe parsing
-    const newListing = {
-      id: Date.now(), // Simple ID generation
-      title: `${formData.year} ${formData.make.charAt(0).toUpperCase() + formData.make.slice(1)} ${formData.model}`,
-      price: safeParseInt(formData.price),
-      year: safeParseInt(formData.year),
-      mileage: safeParseInt(formData.mileage),
-      location: `${safeString(formData.city)}, ${safeString(formData.state)}`,
-      images: uploadedPhotos.length > 0 ? uploadedPhotos : ["/placeholder.svg?height=200&width=300"],
-      seller: {
-        name: `${safeString(formData.firstName)} ${safeString(formData.lastName)}`,
-        rating: 5.0, // New seller starts with perfect rating
-        reviews: 0,
-        avatar: "/placeholder.svg?height=40&width=40",
-      },
-      features: formData.selectedFeatures,
-      fuelType: formData.fuelType.charAt(0).toUpperCase() + formData.fuelType.slice(1),
-      transmission: formData.transmission.charAt(0).toUpperCase() + formData.transmission.slice(1),
-      bodyType: formData.bodyType.charAt(0).toUpperCase() + formData.bodyType.slice(1),
-      condition: conditions.find((c) => c.value === formData.condition)?.label || "Good",
-      description: safeString(formData.description),
-      exteriorColor: formData.exteriorColor === "other" ? formData.customExteriorColor : formData.exteriorColor,
-      interiorColor: formData.interiorColor === "other" ? formData.customInteriorColor : formData.interiorColor,
-      vin: safeString(formData.vin),
-      negotiable: formData.negotiable,
-      tradeConsidered: formData.tradeConsidered,
-      financingAvailable: formData.financingAvailable,
-      publishedAt: new Date().toISOString(),
-    }
-
-    try {
-      // Save to localStorage
-      const existingListings = JSON.parse(localStorage.getItem("userListings") || "[]")
-      existingListings.unshift(newListing) // Add to beginning of array
-      localStorage.setItem("userListings", JSON.stringify(existingListings))
-
-      console.log("Publishing listing:", newListing)
-      router.push("/sell/success")
-    } catch (error) {
-      console.error("Error saving listing:", error)
-      alert("There was an error publishing your listing. Please try again.")
     }
   }
 
@@ -1103,19 +1799,57 @@ export default function SellPage() {
                 <Link href="/sell" className="text-blue-600 font-medium">
                   Sell
                 </Link>
-                <Link href="/financing" className="text-gray-700 hover:text-blue-600">
-                  Financing
-                </Link>
-                <Link href="/about" className="text-gray-700 hover:text-blue-600">
-                  About
-                </Link>
+                {user && (
+                  <>
+                    <Link href="/dashboard" className="text-gray-700 hover:text-blue-600">
+                      Dashboard
+                    </Link>
+                    <Link href="/messages" className="text-gray-700 hover:text-blue-600">
+                      Messages
+                    </Link>
+                  </>
+                )}
               </nav>
             </div>
             <div className="flex items-center space-x-4">
-              <Button variant="outline">Sign In</Button>
-              <Button variant="outline" asChild>
-                <Link href="/">Back to Browse</Link>
-              </Button>
+              {user ? (
+                <>
+                  <NotificationBell />
+                  <span className="text-sm text-gray-600 hidden sm:block">
+                    Welcome, {profile?.first_name || user.email}
+                  </span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Avatar className="cursor-pointer">
+                        <AvatarImage src={profile?.avatar_url || "/placeholder.svg"} />
+                        <AvatarFallback>
+                          {profile?.first_name && profile?.last_name
+                            ? `${profile.first_name[0]}${profile.last_name[0]}`
+                            : user.email?.[0]?.toUpperCase() || "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem asChild>
+                        <Link href="/dashboard">Dashboard</Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link href="/profile">Profile Settings</Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={async () => await signOut()}>Sign Out</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </>
+              ) : (
+                <>
+                  <Button variant="outline" onClick={() => setShowSignIn(true)}>
+                    Sign In
+                  </Button>
+                  <Button asChild>
+                    <Link href="/sell">List Your Vehicle</Link>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1125,7 +1859,9 @@ export default function SellPage() {
         {/* Progress Bar */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-2">
-            <h1 className="text-3xl font-bold text-gray-900">List Your Vehicle</h1>
+            <h1 className="text-3xl font-bold text-gray-900">
+              {isEditMode ? "Edit Your Listing" : "List Your Vehicle"}
+            </h1>
             <span className="text-sm text-gray-600">
               Step {currentStep} of {totalSteps}
             </span>
@@ -1141,7 +1877,6 @@ export default function SellPage() {
             { step: 3, icon: DollarSign, label: "Pricing" },
             { step: 4, icon: Camera, label: "Photos" },
             { step: 5, icon: FileText, label: "Description" },
-            { step: 6, icon: User, label: "Contact" },
           ].map(({ step, icon: Icon, label }) => (
             <div key={step} className="flex flex-col items-center">
               <div
@@ -1172,12 +1907,44 @@ export default function SellPage() {
               Next Step
             </Button>
           ) : (
-            <Button size="lg" className="bg-green-600 hover:bg-green-700" onClick={handlePublish}>
-              Publish Listing
+            <Button
+              size="lg"
+              className="bg-green-600 hover:bg-green-700"
+              onClick={handlePublish}
+              disabled={isPublishing}
+            >
+              {isPublishing ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  {isEditMode ? "Updating..." : "Publishing..."}
+                </>
+              ) : isEditMode ? (
+                "Update Listing"
+              ) : (
+                "Publish Listing"
+              )}
             </Button>
           )}
         </div>
       </div>
+
+      {/* Auth Modals */}
+      <SignInModal
+        isOpen={showSignIn}
+        onClose={() => setShowSignIn(false)}
+        onSwitchToSignUp={() => {
+          setShowSignIn(false)
+          setShowSignUp(true)
+        }}
+      />
+      <SignUpModal
+        isOpen={showSignUp}
+        onClose={() => setShowSignUp(false)}
+        onSwitchToSignIn={() => {
+          setShowSignUp(false)
+          setShowSignIn(true)
+        }}
+      />
     </div>
   )
 }
