@@ -129,31 +129,43 @@ export default function ListingDetailPage() {
 
   const loadStatistics = async () => {
     try {
-      // Combine statistics and Q&A queries for better performance
-      const [statsResult, qaResult] = await Promise.all([
-        supabase.from("listings").select("view_count, favorite_count").eq("id", params.id).single(),
-        supabase
-          .from("listing_questions")
-          .select(`
-            *,
-            user_profiles!user_id (
-              first_name,
-              last_name,
-              avatar_url
-            )
-          `)
-          .eq("listing_id", params.id)
-          .order("created_at", { ascending: false }),
-      ])
+      // Load view count and favorite count
+      const { data: listingStats } = await supabase
+        .from("listings")
+        .select("view_count, favorite_count")
+        .eq("id", params.id)
+        .single()
 
-      // Handle statistics
-      if (statsResult.data) {
-        setViewCount(statsResult.data.view_count || 0)
-        setFavoriteCount(statsResult.data.favorite_count || 0)
+      if (listingStats) {
+        setViewCount(listingStats.view_count || 0)
+        setFavoriteCount(listingStats.favorite_count || 0)
       }
 
-      // Handle Q&A with joined user profiles
-      setQuestions(qaResult.data || [])
+      // Load Q&A - Use separate queries to avoid relationship issues
+      const { data: qaData } = await supabase
+        .from("listing_questions")
+        .select("*")
+        .eq("listing_id", params.id)
+        .order("created_at", { ascending: false })
+
+      // Get user profiles for each question
+      const questionsWithProfiles = []
+      if (qaData && qaData.length > 0) {
+        for (const question of qaData) {
+          const { data: userProfile } = await supabase
+            .from("user_profiles")
+            .select("first_name, last_name, avatar_url")
+            .eq("id", question.user_id)
+            .single()
+
+          questionsWithProfiles.push({
+            ...question,
+            user_profiles: userProfile,
+          })
+        }
+      }
+
+      setQuestions(questionsWithProfiles || [])
     } catch (error) {
       console.error("Error loading statistics:", error)
     }
@@ -360,37 +372,26 @@ export default function ListingDetailPage() {
         throw new Error("Invalid listing ID")
       }
 
-      // Single optimized query to fetch listing with seller info in one go
+      // Fetch listing with photos and features
       const { data: listingData, error: listingError } = await supabase
         .from("listings")
         .select(`
-        *,
-        listing_photos (
-          photo_url,
-          is_main_photo,
-          sort_order
-        ),
-        listing_features (
-          feature_name
-        ),
-        user_profiles!seller_id (
-          id,
-          first_name,
-          last_name,
-          email,
-          phone,
-          city,
-          state,
-          avatar_url,
-          created_at,
-          is_verified
-        )
-      `)
+          *,
+          listing_photos (
+            photo_url,
+            is_main_photo,
+            sort_order
+          ),
+          listing_features (
+            feature_name
+          )
+        `)
         .eq("id", params.id)
         .single()
 
       if (listingError) {
         if (listingError.code === "PGRST116") {
+          // No rows returned
           throw new Error("Listing not found")
         } else {
           throw new Error(`Failed to load listing: ${listingError.message}`)
@@ -401,9 +402,21 @@ export default function ListingDetailPage() {
         throw new Error("Listing not found")
       }
 
+      // Fetch seller information
+      const { data: sellerData, error: sellerError } = await supabase
+        .from("user_profiles")
+        .select("*")
+        .eq("id", listingData.seller_id)
+        .single()
+
+      if (sellerError) {
+        console.error("Error loading seller:", sellerError)
+        // Continue without seller data
+      }
+
       // Transform the listing data
       const transformedListing = {
-        id: listingData.id.toString(),
+        id: listingData.id.toString(), // Ensure ID is a string for consistency
         title: listingData.title,
         price: listingData.price,
         year: listingData.year,
@@ -428,8 +441,7 @@ export default function ListingDetailPage() {
         sellerId: listingData.seller_id,
       }
 
-      // Transform seller data from the joined query
-      const sellerData = listingData.user_profiles
+      // Transform seller data
       const transformedSeller = sellerData
         ? {
             id: sellerData.id,
@@ -440,8 +452,8 @@ export default function ListingDetailPage() {
             phone: sellerData.phone || "",
             city: sellerData.city || "",
             state: sellerData.state || "",
-            rating: 5.0, // Default rating since we removed the non-existent columns
-            reviewCount: 0, // Default review count
+            rating: sellerData.average_rating || 5.0,
+            reviewCount: sellerData.total_reviews || 0,
             avatar: sellerData.avatar_url || "/placeholder.svg?height=40&width=40",
             memberSince: sellerData.created_at,
             isVerified: sellerData.is_verified || false,
@@ -1119,74 +1131,60 @@ Thank you!`)
                 <CardTitle>Seller Information</CardTitle>
               </CardHeader>
               <CardContent>
-                {user ? (
-                  <>
-                    <div className="flex items-center space-x-3 mb-4">
-                      <div className="h-12 w-12">
-                        <Image
-                          src={seller?.avatar || "/placeholder.svg"}
-                          alt="Seller Avatar"
-                          width={48}
-                          height={48}
-                          className="rounded-full object-cover"
-                        />
-                      </div>
-                      <div>
-                        <h3 className="font-semibold">{seller?.name || "Seller"}</h3>
-                        <div className="flex items-center">
-                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400 mr-1" />
-                          <span className="text-sm text-gray-600">
-                            {seller?.rating || 5.0} ({seller?.reviewCount || 0} reviews)
-                          </span>
-                        </div>
-                        {seller?.city && seller?.state && (
-                          <p className="text-sm text-gray-600">
-                            {seller.city}, {seller.state}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="space-y-2 text-sm text-gray-600">
-                      {seller?.isVerified && (
-                        <div className="flex items-center">
-                          <Shield className="h-4 w-4 mr-2 text-green-500" />
-                          <span>Identity verified</span>
-                        </div>
-                      )}
-                      <div className="flex items-center">
-                        <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
-                        <span>Responsive seller</span>
-                      </div>
-                      {seller?.memberSince && (
-                        <div className="flex items-center">
-                          <Calendar className="h-4 w-4 mr-2 text-gray-400" />
-                          <span>Member since {new Date(seller.memberSince).getFullYear()}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="space-y-2">
-                      <Button variant="outline" className="w-full mt-4" asChild>
-                        <Link href={`/seller/${seller?.id}`}>View Seller Profile</Link>
-                      </Button>
-                      <Button variant="outline" className="w-full" onClick={() => setShowReviewForm(true)}>
-                        <Star className="h-4 w-4 mr-2" />
-                        Write Review
-                      </Button>
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-center py-8">
-                    <div className="h-16 w-16 bg-gray-200 rounded-full mx-auto mb-4 flex items-center justify-center">
-                      <Shield className="h-8 w-8 text-gray-400" />
-                    </div>
-                    <p className="text-gray-600 mb-4">Sign in to view seller information</p>
-                    <Button onClick={() => setShowSignInModal(true)} variant="outline" className="w-full">
-                      Sign In to View Seller
-                    </Button>
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="h-12 w-12">
+                    <Image
+                      src={seller?.avatar || "/placeholder.svg"}
+                      alt="Seller Avatar"
+                      width={48}
+                      height={48}
+                      className="rounded-full object-cover"
+                    />
                   </div>
-                )}
+                  <div>
+                    <h3 className="font-semibold">{seller?.name || "Seller"}</h3>
+                    <div className="flex items-center">
+                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400 mr-1" />
+                      <span className="text-sm text-gray-600">
+                        {seller?.rating || 5.0} ({seller?.reviewCount || 0} reviews)
+                      </span>
+                    </div>
+                    {seller?.city && seller?.state && (
+                      <p className="text-sm text-gray-600">
+                        {seller.city}, {seller.state}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2 text-sm text-gray-600">
+                  {seller?.isVerified && (
+                    <div className="flex items-center">
+                      <Shield className="h-4 w-4 mr-2 text-green-500" />
+                      <span>Identity verified</span>
+                    </div>
+                  )}
+                  <div className="flex items-center">
+                    <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
+                    <span>Responsive seller</span>
+                  </div>
+                  {seller?.memberSince && (
+                    <div className="flex items-center">
+                      <Calendar className="h-4 w-4 mr-2 text-gray-400" />
+                      <span>Member since {new Date(seller.memberSince).getFullYear()}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Button variant="outline" className="w-full mt-4" asChild>
+                    <Link href={`/seller/${seller?.id}`}>View Seller Profile</Link>
+                  </Button>
+                  <Button variant="outline" className="w-full" onClick={() => setShowReviewForm(true)}>
+                    <Star className="h-4 w-4 mr-2" />
+                    Write Review
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 

@@ -122,16 +122,16 @@ export default function CarMarketplace() {
       let query = supabase
         .from("listings")
         .select(`
-        *,
-        listing_photos (
-          photo_url,
-          is_main_photo,
-          sort_order
-        ),
-        listing_features (
-          feature_name
-        )
-      `)
+      *,
+      listing_photos (
+        photo_url,
+        is_main_photo,
+        sort_order
+      ),
+      listing_features (
+        feature_name
+      )
+    `)
         .or("status.eq.active,status.eq.pending,status.is.null")
         .not("status", "eq", "sold")
         .not("status", "eq", "draft")
@@ -152,19 +152,26 @@ export default function CarMarketplace() {
       // Get unique user IDs from listings
       const userIds = [...new Set(listings?.map((listing) => listing.user_id).filter(Boolean))]
 
-      // Fetch all user profiles in a single query - try 'profiles' table instead
-      const { data: userProfiles } = await supabase
-        .from("profiles")
-        .select("id, first_name, last_name, avatar_url, phone")
-        .in("id", userIds)
+      // Try to fetch user profiles, but handle gracefully if table doesn't exist
+      let userProfiles = []
+      try {
+        const { data: profiles } = await supabase
+          .from("user_profiles")
+          .select("id, first_name, last_name, avatar_url, phone")
+          .in("id", userIds)
+        userProfiles = profiles || []
+      } catch (profileError) {
+        console.warn("Could not fetch user profiles:", profileError)
+        // Continue without profiles
+      }
 
       // Create a map for quick profile lookup
       const profileMap = new Map()
-      userProfiles?.forEach((profile) => {
+      userProfiles.forEach((profile) => {
         profileMap.set(profile.id, profile)
       })
 
-      // Transform the data with the user profiles
+      // Transform the data
       const transformedListings =
         listings?.map((listing) => {
           const userProfile = profileMap.get(listing.user_id)
@@ -186,8 +193,8 @@ export default function CarMarketplace() {
               name: userProfile
                 ? `${userProfile.first_name || ""} ${userProfile.last_name || ""}`.trim() || "Anonymous Seller"
                 : "Anonymous Seller",
-              rating: 0, // Default since we removed non-existent columns
-              reviews: 0, // Default since we removed non-existent columns
+              rating: 0,
+              reviews: 0,
               avatar: userProfile?.avatar_url || "/placeholder.svg?height=40&width=40",
               phone: userProfile?.phone,
             },
