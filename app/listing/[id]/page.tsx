@@ -129,43 +129,31 @@ export default function ListingDetailPage() {
 
   const loadStatistics = async () => {
     try {
-      // Load view count and favorite count
-      const { data: listingStats } = await supabase
-        .from("listings")
-        .select("view_count, favorite_count")
-        .eq("id", params.id)
-        .single()
+      // Combine statistics and Q&A queries for better performance
+      const [statsResult, qaResult] = await Promise.all([
+        supabase.from("listings").select("view_count, favorite_count").eq("id", params.id).single(),
+        supabase
+          .from("listing_questions")
+          .select(`
+            *,
+            user_profiles!user_id (
+              first_name,
+              last_name,
+              avatar_url
+            )
+          `)
+          .eq("listing_id", params.id)
+          .order("created_at", { ascending: false }),
+      ])
 
-      if (listingStats) {
-        setViewCount(listingStats.view_count || 0)
-        setFavoriteCount(listingStats.favorite_count || 0)
+      // Handle statistics
+      if (statsResult.data) {
+        setViewCount(statsResult.data.view_count || 0)
+        setFavoriteCount(statsResult.data.favorite_count || 0)
       }
 
-      // Load Q&A - Use separate queries to avoid relationship issues
-      const { data: qaData } = await supabase
-        .from("listing_questions")
-        .select("*")
-        .eq("listing_id", params.id)
-        .order("created_at", { ascending: false })
-
-      // Get user profiles for each question
-      const questionsWithProfiles = []
-      if (qaData && qaData.length > 0) {
-        for (const question of qaData) {
-          const { data: userProfile } = await supabase
-            .from("user_profiles")
-            .select("first_name, last_name, avatar_url")
-            .eq("id", question.user_id)
-            .single()
-
-          questionsWithProfiles.push({
-            ...question,
-            user_profiles: userProfile,
-          })
-        }
-      }
-
-      setQuestions(questionsWithProfiles || [])
+      // Handle Q&A with joined user profiles
+      setQuestions(qaResult.data || [])
     } catch (error) {
       console.error("Error loading statistics:", error)
     }
@@ -372,26 +360,37 @@ export default function ListingDetailPage() {
         throw new Error("Invalid listing ID")
       }
 
-      // Fetch listing with photos and features
+      // Single optimized query to fetch listing with seller info in one go
       const { data: listingData, error: listingError } = await supabase
         .from("listings")
         .select(`
-          *,
-          listing_photos (
-            photo_url,
-            is_main_photo,
-            sort_order
-          ),
-          listing_features (
-            feature_name
-          )
-        `)
+        *,
+        listing_photos (
+          photo_url,
+          is_main_photo,
+          sort_order
+        ),
+        listing_features (
+          feature_name
+        ),
+        user_profiles!seller_id (
+          id,
+          first_name,
+          last_name,
+          email,
+          phone,
+          city,
+          state,
+          avatar_url,
+          created_at,
+          is_verified
+        )
+      `)
         .eq("id", params.id)
         .single()
 
       if (listingError) {
         if (listingError.code === "PGRST116") {
-          // No rows returned
           throw new Error("Listing not found")
         } else {
           throw new Error(`Failed to load listing: ${listingError.message}`)
@@ -402,21 +401,9 @@ export default function ListingDetailPage() {
         throw new Error("Listing not found")
       }
 
-      // Fetch seller information
-      const { data: sellerData, error: sellerError } = await supabase
-        .from("user_profiles")
-        .select("*")
-        .eq("id", listingData.seller_id)
-        .single()
-
-      if (sellerError) {
-        console.error("Error loading seller:", sellerError)
-        // Continue without seller data
-      }
-
       // Transform the listing data
       const transformedListing = {
-        id: listingData.id.toString(), // Ensure ID is a string for consistency
+        id: listingData.id.toString(),
         title: listingData.title,
         price: listingData.price,
         year: listingData.year,
@@ -441,7 +428,8 @@ export default function ListingDetailPage() {
         sellerId: listingData.seller_id,
       }
 
-      // Transform seller data
+      // Transform seller data from the joined query
+      const sellerData = listingData.user_profiles
       const transformedSeller = sellerData
         ? {
             id: sellerData.id,
@@ -452,8 +440,8 @@ export default function ListingDetailPage() {
             phone: sellerData.phone || "",
             city: sellerData.city || "",
             state: sellerData.state || "",
-            rating: sellerData.average_rating || 5.0,
-            reviewCount: sellerData.total_reviews || 0,
+            rating: 5.0, // Default rating since we removed the non-existent columns
+            reviewCount: 0, // Default review count
             avatar: sellerData.avatar_url || "/placeholder.svg?height=40&width=40",
             memberSince: sellerData.created_at,
             isVerified: sellerData.is_verified || false,

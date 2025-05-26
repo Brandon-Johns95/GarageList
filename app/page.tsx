@@ -118,65 +118,53 @@ export default function CarMarketplace() {
       setIsLoading(true)
       setError("")
 
-      // Fetch listings with photos and user profiles
+      // Single optimized query with joined user profiles
       let query = supabase
         .from("listings")
         .select(`
-    *,
-    listing_photos (
-      photo_url,
-      is_main_photo,
-      sort_order
-    ),
-    listing_features (
-      feature_name
-    )
-  `)
-        .or("status.eq.active,status.eq.pending,status.is.null") // Show active, pending, or no status set
-        .not("status", "eq", "sold") // Exclude sold listings
-        .not("status", "eq", "draft") // Exclude draft listings
-        .not("status", "eq", "expired") // Exclude expired listings
-
-      // Add check for published listings only
-      query = query.not("published_at", "is", null)
+        *,
+        listing_photos (
+          photo_url,
+          is_main_photo,
+          sort_order
+        ),
+        listing_features (
+          feature_name
+        ),
+        user_profiles!user_id (
+          first_name,
+          last_name,
+          avatar_url,
+          phone
+        )
+      `)
+        .or("status.eq.active,status.eq.pending,status.is.null")
+        .not("status", "eq", "sold")
+        .not("status", "eq", "draft")
+        .not("status", "eq", "expired")
+        .not("published_at", "is", null)
 
       // Filter by location if selected
       if (selectedLocation && selectedLocation.state !== "Current Location") {
         query = query.or(`location.ilike.%${selectedLocation.city}%,location.ilike.%${selectedLocation.state}%`)
       }
 
-      const { data: listings, error: listingsError } = await query.order("created_at", { ascending: false })
+      const { data: listings, error: listingsError } = await query.order("created_at", { ascending: false }).limit(50) // Add limit to improve performance
 
       if (listingsError) {
         throw new Error(`Failed to load listings: ${listingsError.message}`)
       }
 
-      // Fetch user profiles separately for each listing
-      const listingsWithProfiles = await Promise.all(
-        (listings || []).map(async (listing) => {
-          const { data: userProfile } = await supabase
-            .from("user_profiles")
-            .select("first_name, last_name, avatar_url, phone, average_rating, total_reviews")
-            .eq("id", listing.user_id)
-            .single()
-
-          return {
-            ...listing,
-            user_profiles: userProfile,
-          }
-        }),
-      )
-
-      // Transform the data to match the expected format
+      // Transform the data with the joined user profiles
       const transformedListings =
-        listingsWithProfiles?.map((listing) => ({
+        listings?.map((listing) => ({
           id: listing.id,
           title: listing.title,
           price: listing.price,
           year: listing.year,
           mileage: listing.mileage,
           location: listing.location,
-          status: listing.status, // Add this line
+          status: listing.status,
           vehicleCategory: listing.vehicle_category || "cars",
           images: listing.listing_photos
             ?.sort((a, b) => a.sort_order - b.sort_order)
@@ -187,8 +175,8 @@ export default function CarMarketplace() {
               ? `${listing.user_profiles.first_name || ""} ${listing.user_profiles.last_name || ""}`.trim() ||
                 "Anonymous Seller"
               : "Anonymous Seller",
-            rating: listing.user_profiles?.average_rating || 0,
-            reviews: listing.user_profiles?.total_reviews || 0,
+            rating: 0, // Default since we removed non-existent columns
+            reviews: 0, // Default since we removed non-existent columns
             avatar: listing.user_profiles?.avatar_url || "/placeholder.svg?height=40&width=40",
             phone: listing.user_profiles?.phone,
           },
