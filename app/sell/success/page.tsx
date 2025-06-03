@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { Check, Share2, Edit, Eye, MessageCircle, Calendar, Copy, Facebook, Twitter, Mail, Phone } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
@@ -13,6 +14,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/lib/auth-context"
 
 // Helper function to safely format numbers
 const safeToLocaleString = (value: any): string => {
@@ -20,34 +23,85 @@ const safeToLocaleString = (value: any): string => {
   return !isNaN(num) && isFinite(num) ? num.toLocaleString() : "0"
 }
 
-// Helper function to safely get string values
-const safeString = (value: any): string => {
-  return value && typeof value === "string" ? value : ""
-}
-
 export default function ListingSuccessPage() {
+  const searchParams = useSearchParams()
+  const listingId = searchParams.get("id")
+  const { user } = useAuth()
   const [copied, setCopied] = useState(false)
   const [publishedListing, setPublishedListing] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState("")
 
   useEffect(() => {
-    // Get the most recently published listing
+    if (listingId) {
+      loadPublishedListing()
+    } else {
+      setError("No listing ID provided")
+      setIsLoading(false)
+    }
+  }, [listingId])
+
+  const loadPublishedListing = async () => {
     try {
-      const userListingsData = localStorage.getItem("userListings")
-      if (userListingsData) {
-        const userListings = JSON.parse(userListingsData)
-        if (Array.isArray(userListings) && userListings.length > 0) {
-          // Get the most recent listing (first in array since we unshift new listings)
-          const latestListing = userListings[0]
-          setPublishedListing(latestListing)
-        }
+      setIsLoading(true)
+      setError("")
+
+      // Fetch the listing with photos and features
+      const { data: listing, error: listingError } = await supabase
+        .from("listings")
+        .select(`
+          *,
+          listing_photos (
+            photo_url,
+            is_main_photo,
+            sort_order
+          ),
+          listing_features (
+            feature_name
+          )
+        `)
+        .eq("id", listingId)
+        .single()
+
+      if (listingError) {
+        throw new Error(`Failed to load listing: ${listingError.message}`)
       }
+
+      // Transform the data to match the expected format
+      const transformedListing = {
+        id: listing.id,
+        title: listing.title,
+        price: listing.price,
+        year: listing.year,
+        mileage: listing.mileage,
+        location: listing.location,
+        images: listing.listing_photos
+          ?.sort((a, b) => a.sort_order - b.sort_order)
+          ?.map((photo) => photo.photo_url) || ["/placeholder.svg?height=300&width=400"],
+        features: listing.listing_features?.map((feature) => feature.feature_name) || [],
+        fuelType: listing.fuel_type || "Gasoline",
+        transmission: listing.transmission || "Automatic",
+        bodyType: listing.body_type || "Sedan",
+        condition: listing.condition || "Good",
+        description: listing.description || "",
+        exteriorColor: listing.exterior_color || "",
+        interiorColor: listing.interior_color || "",
+        vin: listing.vin || "",
+        negotiable: Boolean(listing.negotiable),
+        tradeConsidered: Boolean(listing.trade_considered),
+        financingAvailable: Boolean(listing.financing_available),
+        publishedAt: listing.published_at,
+        expiresAt: listing.expires_at,
+      }
+
+      setPublishedListing(transformedListing)
     } catch (error) {
       console.error("Error loading published listing:", error)
+      setError(error instanceof Error ? error.message : "Failed to load listing")
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }
 
   const copyListingUrl = async () => {
     if (!publishedListing) return
@@ -99,7 +153,7 @@ export default function ListingSuccessPage() {
     )
   }
 
-  if (!publishedListing) {
+  if (error || !publishedListing) {
     return (
       <div className="min-h-screen bg-gray-50">
         {/* Header */}
@@ -125,9 +179,11 @@ export default function ListingSuccessPage() {
         </header>
 
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-16 text-center">
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">No Listing Found</h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            {error ? "Error Loading Listing" : "Listing Not Found"}
+          </h1>
           <p className="text-gray-600 mb-6">
-            We couldn't find your published listing. Please try listing your vehicle again.
+            {error || "We couldn't find your published listing. Please try listing your vehicle again."}
           </p>
           <Button asChild>
             <Link href="/sell">Create New Listing</Link>
@@ -138,9 +194,11 @@ export default function ListingSuccessPage() {
   }
 
   const listingUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/listing/${publishedListing.id}`
-  const listingId = `GL-${publishedListing.id}`
+  const listingIdFormatted = `GL-${publishedListing.id}`
   const publishedDate = publishedListing.publishedAt ? new Date(publishedListing.publishedAt) : new Date()
-  const expiresDate = new Date(publishedDate.getTime() + 30 * 24 * 60 * 60 * 1000) // 30 days from published date
+  const expiresDate = publishedListing.expiresAt
+    ? new Date(publishedListing.expiresAt)
+    : new Date(publishedDate.getTime() + 30 * 24 * 60 * 60 * 1000)
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -297,7 +355,7 @@ export default function ListingSuccessPage() {
             <CardContent className="space-y-4">
               <div>
                 <Label className="text-sm font-medium text-gray-600">Listing ID</Label>
-                <p className="font-mono text-sm">{listingId}</p>
+                <p className="font-mono text-sm">{listingIdFormatted}</p>
               </div>
               <div>
                 <Label className="text-sm font-medium text-gray-600">Published</Label>

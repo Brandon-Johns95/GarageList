@@ -1,200 +1,293 @@
 "use client"
-
-import type React from "react"
-
-import { useState, useRef, useEffect } from "react"
-import {
-  Send,
-  Search,
-  Phone,
-  Video,
-  MoreVertical,
-  Paperclip,
-  ImageIcon,
-  Calendar,
-  MapPin,
-  Star,
-  Archive,
-  Trash2,
-  Flag,
-  CheckCheck,
-  Check,
-} from "lucide-react"
-import Image from "next/image"
+import { useState, useEffect } from "react"
+import { Search, MessageSquare, Archive, Pin } from "lucide-react"
 import Link from "next/link"
-
-import { GarageListLogo } from "@/components/garage-list-logo"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Textarea } from "@/components/ui/textarea"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import { EnhancedMessagingInterface } from "@/components/messaging/enhanced-messaging-interface"
+import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/lib/auth-context"
+import { useLocation } from "@/lib/location-context"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Header } from "@/components/header"
 
-// Mock current user
-const currentUser = {
-  id: "user-1",
-  name: "John Smith",
-  avatar: "/placeholder.svg?height=40&width=40",
+// TypeScript interfaces
+interface UserProfile {
+  id: string
+  first_name: string
+  last_name: string
+  avatar_url: string | null
+  email: string
 }
 
-// Mock conversations
-const conversations = [
-  {
-    id: "conv-1",
-    listingId: "GL-12345",
-    listingTitle: "2020 Honda Civic LX",
-    listingPrice: 18500,
-    listingImage: "/placeholder.svg?height=60&width=80",
-    otherUser: {
-      id: "user-2",
-      name: "Sarah Johnson",
-      avatar: "/placeholder.svg?height=40&width=40",
-      rating: 4.8,
-      reviewCount: 12,
-    },
-    lastMessage: {
-      text: "Great! I can meet tomorrow at 2 PM. Should I bring anything specific for the test drive?",
-      timestamp: "2024-01-22T14:30:00Z",
-      senderId: "user-2",
-    },
-    unreadCount: 2,
-    status: "active",
-  },
-  {
-    id: "conv-2",
-    listingId: "GL-12346",
-    listingTitle: "2018 Toyota Camry SE",
-    listingPrice: 22000,
-    listingImage: "/placeholder.svg?height=60&width=80",
-    otherUser: {
-      id: "user-3",
-      name: "Mike Chen",
-      avatar: "/placeholder.svg?height=40&width=40",
-      rating: 4.9,
-      reviewCount: 8,
-    },
-    lastMessage: {
-      text: "Thanks for the detailed photos. The car looks great!",
-      timestamp: "2024-01-22T10:15:00Z",
-      senderId: "user-1",
-    },
-    unreadCount: 0,
-    status: "active",
-  },
-  {
-    id: "conv-3",
-    listingId: "GL-12347",
-    listingTitle: "2019 Harley-Davidson Sportster",
-    listingPrice: 8500,
-    listingImage: "/placeholder.svg?height=60&width=80",
-    otherUser: {
-      id: "user-4",
-      name: "David Rodriguez",
-      avatar: "/placeholder.svg?height=40&width=40",
-      rating: 4.7,
-      reviewCount: 15,
-    },
-    lastMessage: {
-      text: "Is the price negotiable? I'm very interested.",
-      timestamp: "2024-01-21T16:45:00Z",
-      senderId: "user-4",
-    },
-    unreadCount: 1,
-    status: "active",
-  },
-]
+interface Listing {
+  id: number
+  title: string
+  price: number
+  listing_photos: Array<{ photo_url: string; is_main_photo: boolean }>
+}
 
-// Mock messages for active conversation
-const messages = [
-  {
-    id: "msg-1",
-    senderId: "user-2",
-    text: "Hi! I'm very interested in your Honda Civic. Is it still available?",
-    timestamp: "2024-01-22T09:00:00Z",
-    status: "read",
-  },
-  {
-    id: "msg-2",
-    senderId: "user-1",
-    text: "Yes, it's still available! Thanks for your interest. Do you have any specific questions about the car?",
-    timestamp: "2024-01-22T09:15:00Z",
-    status: "read",
-  },
-  {
-    id: "msg-3",
-    senderId: "user-2",
-    text: "What's the maintenance history like? Any accidents or major repairs?",
-    timestamp: "2024-01-22T09:30:00Z",
-    status: "read",
-  },
-  {
-    id: "msg-4",
-    senderId: "user-1",
-    text: "No accidents at all! I have all maintenance records. Oil changes every 5,000 miles, new tires last year, and brakes were done 6 months ago. It's been garage kept.",
-    timestamp: "2024-01-22T09:45:00Z",
-    status: "read",
-  },
-  {
-    id: "msg-5",
-    senderId: "user-2",
-    text: "That sounds perfect! Would it be possible to schedule a test drive? I'm available this weekend.",
-    timestamp: "2024-01-22T10:00:00Z",
-    status: "read",
-  },
-  {
-    id: "msg-6",
-    senderId: "user-1",
-    text: "How about Saturday at 2 PM? We can meet at the Starbucks on Main Street - it's a safe public location with a good parking lot for the test drive.",
-    timestamp: "2024-01-22T10:30:00Z",
-    status: "read",
-  },
-  {
-    id: "msg-7",
-    senderId: "user-2",
-    text: "Great! I can meet tomorrow at 2 PM. Should I bring anything specific for the test drive?",
-    timestamp: "2024-01-22T14:30:00Z",
-    status: "delivered",
-  },
-  {
-    id: "msg-8",
-    senderId: "user-2",
-    text: "Also, I'm pre-approved for financing if that helps with the process.",
-    timestamp: "2024-01-22T14:31:00Z",
-    status: "delivered",
-  },
-]
+interface Message {
+  id: string
+  content: string
+  sender_id: string
+  created_at: string
+  read_at: string | null
+}
+
+interface Conversation {
+  id: string
+  listing_id: number
+  buyer_id: string
+  seller_id: string
+  created_at: string
+  updated_at: string
+  archived_by_buyer: boolean
+  archived_by_seller: boolean
+  pinned_by_buyer: boolean
+  pinned_by_seller: boolean
+  listing: Listing
+  other_user: UserProfile
+  last_message: Message | null
+  unread_count: number
+}
 
 export default function MessagesPage() {
-  const [selectedConversation, setSelectedConversation] = useState(conversations[0])
-  const [newMessage, setNewMessage] = useState("")
-  const [searchTerm, setSearchTerm] = useState("")
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const { user, profile, signOut } = useAuth()
+  const { selectedLocation, clearLocation } = useLocation()
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
+  // Remove these lines:
+  // const [showSignIn, setShowSignIn] = useState(false)
+  // const [showSignUp, setShowSignUp] = useState(false)
 
+  // State management
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [filterType, setFilterType] = useState("all")
+  const [isLoading, setIsLoading] = useState(true)
+  const [isMobileView, setIsMobileView] = useState(false)
+  const [showArchived, setShowArchived] = useState(false)
+
+  // Mobile detection
   useEffect(() => {
-    scrollToBottom()
-  }, [messages])
+    const checkMobile = () => {
+      setIsMobileView(window.innerWidth < 1024)
+    }
 
-  const handleSendMessage = () => {
-    if (newMessage.trim()) {
-      // In a real app, this would send the message to the backend
-      console.log("Sending message:", newMessage)
-      setNewMessage("")
+    checkMobile()
+    window.addEventListener("resize", checkMobile)
+    return () => window.removeEventListener("resize", checkMobile)
+  }, [])
+
+  // Load conversations
+  const loadConversations = async () => {
+    if (!user || !profile) return
+
+    try {
+      setIsLoading(true)
+
+      const { data: conversationsData, error } = await supabase
+        .from("conversations")
+        .select(`
+          *,
+          listings!inner (
+            id,
+            title,
+            price,
+            listing_photos (photo_url, is_main_photo)
+          )
+        `)
+        .or(`buyer_id.eq.${profile.id},seller_id.eq.${profile.id}`)
+        .order("updated_at", { ascending: false })
+
+      if (error) throw error
+
+      // Enrich conversations with additional data
+      const enrichedConversations = await Promise.all(
+        (conversationsData || []).map(async (conv) => {
+          const otherUserId = conv.buyer_id === profile.id ? conv.seller_id : conv.buyer_id
+          const isArchivedByUser = conv.buyer_id === profile.id ? conv.archived_by_buyer : conv.archived_by_seller
+          const isPinnedByUser = conv.buyer_id === profile.id ? conv.pinned_by_buyer : conv.pinned_by_seller
+
+          // Skip archived conversations unless specifically viewing them
+          if (isArchivedByUser && !showArchived) return null
+
+          // Get other user profile
+          const { data: otherUser } = await supabase
+            .from("user_profiles")
+            .select("id, first_name, last_name, avatar_url, email")
+            .eq("id", otherUserId)
+            .single()
+
+          // Get last message
+          const { data: lastMessage } = await supabase
+            .from("messages")
+            .select("id, content, sender_id, created_at, read_at")
+            .eq("conversation_id", conv.id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+
+          // Count unread messages
+          const { count: unreadCount } = await supabase
+            .from("messages")
+            .select("*", { count: "exact", head: true })
+            .eq("conversation_id", conv.id)
+            .neq("sender_id", profile.id)
+            .is("read_at", null)
+
+          return {
+            ...conv,
+            listing: {
+              id: conv.listings.id,
+              title: conv.listings.title,
+              price: conv.listings.price,
+              listing_photos: conv.listings.listing_photos || [],
+            },
+            other_user: otherUser,
+            last_message: lastMessage,
+            unread_count: unreadCount || 0,
+            is_pinned: isPinnedByUser,
+            is_archived: isArchivedByUser,
+          }
+        }),
+      )
+
+      // Filter out null values and sort (pinned first)
+      const validConversations = enrichedConversations.filter(Boolean).sort((a, b) => {
+        if (a.is_pinned && !b.is_pinned) return -1
+        if (!a.is_pinned && b.is_pinned) return 1
+        return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+      })
+
+      setConversations(validConversations)
+
+      // Auto-select first conversation on desktop
+      if (validConversations.length > 0 && !selectedConversation && !isMobileView) {
+        setSelectedConversation(validConversations[0])
+      }
+    } catch (error) {
+      console.error("Error loading conversations:", error)
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault()
-      handleSendMessage()
+  // Archive conversation
+  const archiveConversation = async (conversationId: string) => {
+    if (!profile) return
+
+    try {
+      const conversation = conversations.find((c) => c.id === conversationId)
+      if (!conversation) return
+
+      const updateField = conversation.buyer_id === profile.id ? "archived_by_buyer" : "archived_by_seller"
+
+      const { error } = await supabase
+        .from("conversations")
+        .update({ [updateField]: true })
+        .eq("id", conversationId)
+
+      if (error) throw error
+
+      // Remove from current view
+      setConversations((prev) => prev.filter((c) => c.id !== conversationId))
+
+      if (selectedConversation?.id === conversationId) {
+        setSelectedConversation(null)
+        setIsMobileView(false)
+      }
+    } catch (error) {
+      console.error("Error archiving conversation:", error)
     }
   }
+
+  // Pin conversation
+  const pinConversation = async (conversationId: string) => {
+    if (!profile) return
+
+    try {
+      const conversation = conversations.find((c) => c.id === conversationId)
+      if (!conversation) return
+
+      const updateField = conversation.buyer_id === profile.id ? "pinned_by_buyer" : "pinned_by_seller"
+      const currentPinned =
+        conversation.buyer_id === profile.id ? conversation.pinned_by_buyer : conversation.pinned_by_seller
+
+      const { error } = await supabase
+        .from("conversations")
+        .update({ [updateField]: !currentPinned })
+        .eq("id", conversationId)
+
+      if (error) throw error
+
+      // Update local state
+      setConversations((prev) =>
+        prev
+          .map((c) => (c.id === conversationId ? { ...c, is_pinned: !currentPinned } : c))
+          .sort((a, b) => {
+            if (a.is_pinned && !b.is_pinned) return -1
+            if (!a.is_pinned && b.is_pinned) return 1
+            return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime()
+          }),
+      )
+    } catch (error) {
+      console.error("Error pinning conversation:", error)
+    }
+  }
+
+  // Block user
+  const blockUser = async (userId: string) => {
+    if (!profile) return
+
+    try {
+      const { error } = await supabase.from("user_blocks").insert({
+        blocker_id: profile.id,
+        blocked_id: userId,
+        reason: "Blocked from messages",
+      })
+
+      if (error) throw error
+
+      // Remove conversations with blocked user
+      setConversations((prev) => prev.filter((c) => c.other_user.id !== userId))
+
+      if (selectedConversation?.other_user.id === userId) {
+        setSelectedConversation(null)
+        setIsMobileView(false)
+      }
+    } catch (error) {
+      console.error("Error blocking user:", error)
+    }
+  }
+
+  // Filter conversations
+  const filteredConversations = conversations.filter((conv) => {
+    // Search filter
+    const matchesSearch =
+      conv.other_user.first_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      conv.other_user.last_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      conv.listing.title.toLowerCase().includes(searchQuery.toLowerCase())
+
+    if (!matchesSearch) return false
+
+    // Type filter
+    switch (filterType) {
+      case "unread":
+        return conv.unread_count > 0
+      case "pinned":
+        return conv.is_pinned
+      case "archived":
+        return conv.is_archived
+      default:
+        return true
+    }
+  })
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp)
@@ -210,282 +303,225 @@ export default function MessagesPage() {
     }
   }
 
-  const getMessageStatus = (status: string) => {
-    switch (status) {
-      case "sent":
-        return <Check className="h-3 w-3 text-gray-400" />
-      case "delivered":
-        return <CheckCheck className="h-3 w-3 text-gray-400" />
-      case "read":
-        return <CheckCheck className="h-3 w-3 text-blue-500" />
-      default:
-        return null
+  useEffect(() => {
+    if (user && profile) {
+      loadConversations()
     }
+  }, [user, profile, showArchived])
+
+  // Real-time subscriptions
+  useEffect(() => {
+    if (!profile) return
+
+    const channel = supabase
+      .channel("messages")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+        },
+        () => {
+          loadConversations()
+        },
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [profile])
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">Please Sign In</h1>
+          <p className="text-gray-600 mb-6">You need to be signed in to view your messages.</p>
+          <Button asChild>
+            <Link href="/auth">Sign In</Link>
+          </Button>
+        </div>
+      </div>
+    )
   }
 
-  const filteredConversations = conversations.filter(
-    (conv) =>
-      conv.otherUser.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      conv.listingTitle.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading messages...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-8">
-              <Link href="/" className="flex items-center space-x-2">
-                <GarageListLogo />
-                <span className="text-2xl font-bold text-blue-600">GarageList</span>
-              </Link>
-              <nav className="hidden md:flex space-x-6">
-                <Link href="/" className="text-gray-700 hover:text-blue-600">
-                  Browse
-                </Link>
-                <Link href="/sell" className="text-gray-700 hover:text-blue-600">
-                  Sell
-                </Link>
-                <Link href="/dashboard" className="text-gray-700 hover:text-blue-600">
-                  Dashboard
-                </Link>
-                <Link href="/messages" className="text-blue-600 font-medium">
-                  Messages
-                </Link>
-              </nav>
-            </div>
-            <div className="flex items-center space-x-4">
-              <Avatar>
-                <AvatarImage src={currentUser.avatar || "/placeholder.svg"} />
-                <AvatarFallback>
-                  {currentUser.name
-                    .split(" ")
-                    .map((n) => n[0])
-                    .join("")}
-                </AvatarFallback>
-              </Avatar>
-            </div>
+      <Header />
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 lg:py-8">
+        {conversations.length === 0 ? (
+          <div className="text-center py-16">
+            <MessageSquare className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <h1 className="text-2xl font-bold text-gray-900 mb-4">No Messages Yet</h1>
+            <p className="text-gray-600 mb-6">Start browsing listings and message sellers to begin conversations.</p>
+            <Button asChild>
+              <Link href="/">Browse Listings</Link>
+            </Button>
           </div>
-        </div>
-      </header>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6 h-[calc(100vh-8rem)] lg:h-[calc(100vh-12rem)]">
+            {/* Conversations list - hidden on mobile when chat is open */}
+            <div className={`lg:col-span-1 ${isMobileView && selectedConversation ? "hidden lg:block" : ""}`}>
+              <Card className="h-full">
+                <CardContent className="p-0 h-full flex flex-col">
+                  {/* Search and filters */}
+                  <div className="p-4 border-b space-y-3">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                      <Input
+                        placeholder="Search conversations..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="pl-10"
+                      />
+                    </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-12rem)]">
-          {/* Conversations List */}
-          <Card className="lg:col-span-1">
-            <CardContent className="p-0 h-full flex flex-col">
-              {/* Search */}
-              <div className="p-4 border-b">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-                  <Input
-                    placeholder="Search conversations..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
+                    <div className="flex items-center space-x-2">
+                      <Select value={filterType} onValueChange={setFilterType}>
+                        <SelectTrigger className="flex-1">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">All Messages</SelectItem>
+                          <SelectItem value="unread">Unread</SelectItem>
+                          <SelectItem value="pinned">Pinned</SelectItem>
+                        </SelectContent>
+                      </Select>
 
-              {/* Conversations */}
-              <ScrollArea className="flex-1">
-                <div className="space-y-1 p-2">
-                  {filteredConversations.map((conversation) => (
-                    <div
-                      key={conversation.id}
-                      className={`p-3 rounded-lg cursor-pointer transition-colors ${
-                        selectedConversation.id === conversation.id
-                          ? "bg-blue-50 border border-blue-200"
-                          : "hover:bg-gray-50"
-                      }`}
-                      onClick={() => setSelectedConversation(conversation)}
-                    >
-                      <div className="flex items-start space-x-3">
-                        <Avatar className="h-10 w-10">
-                          <AvatarImage src={conversation.otherUser.avatar || "/placeholder.svg"} />
-                          <AvatarFallback>
-                            {conversation.otherUser.name
-                              .split(" ")
-                              .map((n) => n[0])
-                              .join("")}
-                          </AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between">
-                            <h4 className="font-medium text-gray-900 truncate">{conversation.otherUser.name}</h4>
-                            <div className="flex items-center space-x-1">
-                              {conversation.unreadCount > 0 && (
-                                <Badge className="bg-blue-500 text-white text-xs">{conversation.unreadCount}</Badge>
+                      <Button
+                        variant={showArchived ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setShowArchived(!showArchived)}
+                      >
+                        <Archive className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+
+                  {/* Conversations list */}
+                  <ScrollArea className="flex-1">
+                    <div className="space-y-1 p-2">
+                      {filteredConversations.map((conversation) => (
+                        <div
+                          key={conversation.id}
+                          className={`p-3 rounded-lg cursor-pointer transition-colors relative ${
+                            selectedConversation?.id === conversation.id
+                              ? "bg-blue-50 border border-blue-200"
+                              : "hover:bg-gray-50"
+                          }`}
+                          onClick={() => {
+                            setSelectedConversation(conversation)
+                            if (isMobileView) {
+                              setIsMobileView(true)
+                            }
+                          }}
+                        >
+                          {/* Pin indicator */}
+                          {conversation.is_pinned && <Pin className="absolute top-2 right-2 h-3 w-3 text-blue-500" />}
+
+                          <div className="flex items-start space-x-3">
+                            <Avatar className="h-12 w-12 flex-shrink-0">
+                              <AvatarImage src={conversation.other_user.avatar_url || "/placeholder.svg"} />
+                              <AvatarFallback>
+                                {conversation.other_user.first_name[0]}
+                                {conversation.other_user.last_name[0]}
+                              </AvatarFallback>
+                            </Avatar>
+
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center justify-between mb-1">
+                                <h4 className="font-medium text-gray-900 truncate">
+                                  {conversation.other_user.first_name} {conversation.other_user.last_name}
+                                </h4>
+                                <div className="flex items-center space-x-2 flex-shrink-0">
+                                  {conversation.unread_count > 0 && (
+                                    <Badge className="bg-blue-500 text-white text-xs min-w-[20px] h-5 flex items-center justify-center">
+                                      {conversation.unread_count > 99 ? "99+" : conversation.unread_count}
+                                    </Badge>
+                                  )}
+                                  <span className="text-xs text-gray-500">
+                                    {conversation.last_message && formatTime(conversation.last_message.created_at)}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <p className="text-sm text-gray-600 truncate mb-1">{conversation.listing.title}</p>
+
+                              {conversation.last_message && (
+                                <p className="text-sm text-gray-500 truncate">
+                                  <span className="font-medium">
+                                    {conversation.last_message.sender_id === profile?.id
+                                      ? "You"
+                                      : conversation.other_user.first_name}
+                                    :
+                                  </span>{" "}
+                                  {conversation.last_message.content}
+                                </p>
                               )}
-                              <span className="text-xs text-gray-500">
-                                {formatTime(conversation.lastMessage.timestamp)}
-                              </span>
                             </div>
                           </div>
-                          <p className="text-sm text-gray-600 truncate">{conversation.listingTitle}</p>
-                          <p className="text-sm text-gray-500 truncate mt-1">{conversation.lastMessage.text}</p>
                         </div>
-                      </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
-              </ScrollArea>
-            </CardContent>
-          </Card>
+                  </ScrollArea>
+                </CardContent>
+              </Card>
+            </div>
 
-          {/* Chat Interface */}
-          <Card className="lg:col-span-2">
-            <CardContent className="p-0 h-full flex flex-col">
-              {/* Chat Header */}
-              <div className="p-4 border-b bg-white">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-3">
-                    <Avatar>
-                      <AvatarImage src={selectedConversation.otherUser.avatar || "/placeholder.svg"} />
-                      <AvatarFallback>
-                        {selectedConversation.otherUser.name
-                          .split(" ")
-                          .map((n) => n[0])
-                          .join("")}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">{selectedConversation.otherUser.name}</h3>
-                      <div className="flex items-center space-x-2">
-                        <div className="flex items-center">
-                          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400 mr-1" />
-                          <span className="text-xs text-gray-600">
-                            {selectedConversation.otherUser.rating} ({selectedConversation.otherUser.reviewCount})
-                          </span>
-                        </div>
-                        <span className="text-xs text-gray-400">•</span>
-                        <span className="text-xs text-gray-600">Online</span>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Button variant="ghost" size="sm">
-                      <Phone className="h-4 w-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm">
-                      <Video className="h-4 w-4" />
-                    </Button>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="sm">
-                          <MoreVertical className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem>
-                          <Archive className="h-4 w-4 mr-2" />
-                          Archive Conversation
-                        </DropdownMenuItem>
-                        <DropdownMenuItem>
-                          <Flag className="h-4 w-4 mr-2" />
-                          Report User
-                        </DropdownMenuItem>
-                        <DropdownMenuItem className="text-red-600">
-                          <Trash2 className="h-4 w-4 mr-2" />
-                          Delete Conversation
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </div>
-                </div>
-
-                {/* Listing Context */}
-                <div className="mt-3 p-3 bg-gray-50 rounded-lg">
-                  <div className="flex items-center space-x-3">
-                    <Image
-                      src={selectedConversation.listingImage || "/placeholder.svg"}
-                      alt={selectedConversation.listingTitle}
-                      width={60}
-                      height={45}
-                      className="rounded object-cover"
+            {/* Chat interface - full screen on mobile */}
+            {selectedConversation && (
+              <div className={`lg:col-span-2 ${!isMobileView && !selectedConversation ? "hidden lg:block" : ""}`}>
+                <Card className="h-full">
+                  <CardContent className="p-0 h-full">
+                    <EnhancedMessagingInterface
+                      conversationId={selectedConversation.id}
+                      currentUserId={profile?.id || ""}
+                      otherUser={{
+                        id: selectedConversation.other_user.id,
+                        name: `${selectedConversation.other_user.first_name} ${selectedConversation.other_user.last_name}`,
+                        avatar: selectedConversation.other_user.avatar_url || "/placeholder.svg",
+                      }}
+                      listing={{
+                        id: selectedConversation.listing.id.toString(),
+                        title: selectedConversation.listing.title,
+                        price: selectedConversation.listing.price,
+                        images: selectedConversation.listing.listing_photos.map((p) => p.photo_url),
+                      }}
+                      onArchive={() => archiveConversation(selectedConversation.id)}
+                      onPin={() => pinConversation(selectedConversation.id)}
+                      onBlock={() => blockUser(selectedConversation.other_user.id)}
                     />
-                    <div className="flex-1">
-                      <h4 className="font-medium text-gray-900">{selectedConversation.listingTitle}</h4>
-                      <p className="text-lg font-bold text-blue-600">
-                        ${selectedConversation.listingPrice.toLocaleString()}
-                      </p>
-                    </div>
-                    <Button variant="outline" size="sm" asChild>
-                      <Link href={`/listing/${selectedConversation.listingId}`}>View Listing</Link>
-                    </Button>
-                  </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
+            {/* Empty state for desktop when no conversation selected */}
+            {!selectedConversation && !isMobileView && conversations.length > 0 && (
+              <div className="hidden lg:flex lg:col-span-2 items-center justify-center">
+                <div className="text-center text-gray-500">
+                  <MessageSquare className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                  <h3 className="text-lg font-medium mb-2">Select a conversation</h3>
+                  <p>Choose a conversation from the list to start messaging.</p>
                 </div>
               </div>
-
-              {/* Messages */}
-              <ScrollArea className="flex-1 p-4">
-                <div className="space-y-4">
-                  {messages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`flex ${message.senderId === currentUser.id ? "justify-end" : "justify-start"}`}
-                    >
-                      <div
-                        className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-                          message.senderId === currentUser.id ? "bg-blue-500 text-white" : "bg-gray-100 text-gray-900"
-                        }`}
-                      >
-                        <p className="text-sm">{message.text}</p>
-                        <div
-                          className={`flex items-center justify-end space-x-1 mt-1 ${
-                            message.senderId === currentUser.id ? "text-blue-100" : "text-gray-500"
-                          }`}
-                        >
-                          <span className="text-xs">{formatTime(message.timestamp)}</span>
-                          {message.senderId === currentUser.id && getMessageStatus(message.status)}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                  <div ref={messagesEndRef} />
-                </div>
-              </ScrollArea>
-
-              {/* Message Input */}
-              <div className="p-4 border-t bg-white">
-                <div className="flex items-end space-x-2">
-                  <Button variant="ghost" size="sm">
-                    <Paperclip className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="sm">
-                    <ImageIcon className="h-4 w-4" />
-                  </Button>
-                  <div className="flex-1">
-                    <Textarea
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      onKeyPress={handleKeyPress}
-                      placeholder="Type your message..."
-                      className="min-h-[40px] max-h-32 resize-none"
-                      rows={1}
-                    />
-                  </div>
-                  <Button onClick={handleSendMessage} disabled={!newMessage.trim()}>
-                    <Send className="h-4 w-4" />
-                  </Button>
-                </div>
-
-                {/* Quick Actions */}
-                <div className="flex items-center space-x-2 mt-2">
-                  <Button variant="outline" size="sm">
-                    <Calendar className="h-4 w-4 mr-2" />
-                    Schedule Meeting
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    <MapPin className="h-4 w-4 mr-2" />
-                    Share Location
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )
