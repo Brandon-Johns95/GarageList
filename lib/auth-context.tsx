@@ -111,6 +111,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } = supabase.auth.onAuthStateChange(async (event, session) => {
       console.log("Auth state changed:", event, session?.user?.email)
 
+      // Handle email verification success
+      if (event === "TOKEN_REFRESHED" && session?.user?.email_confirmed_at) {
+        // Redirect to verification success page
+        window.location.href = "/auth/verification-success"
+        return
+      }
+
       setUser(session?.user ?? null)
 
       if (session?.user) {

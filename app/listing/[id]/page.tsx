@@ -338,8 +338,8 @@ const ListingDetailPageContent = React.memo(function ListingDetailPageContent() 
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-4 sm:py-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-8">
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-8">
           {/* Image Gallery */}
@@ -351,7 +351,7 @@ const ListingDetailPageContent = React.memo(function ListingDetailPageContent() 
                   alt={listing.title}
                   width={800}
                   height={500}
-                  className="w-full h-96 object-cover rounded-t-lg"
+                  className="w-full h-48 sm:h-64 lg:h-96 object-cover rounded-t-lg"
                 />
 
                 {listing.images.length > 1 && (
@@ -417,7 +417,7 @@ const ListingDetailPageContent = React.memo(function ListingDetailPageContent() 
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 <div className="flex items-center space-x-3">
                   <Calendar className="h-5 w-5 text-gray-400" />
                   <div>
@@ -506,7 +506,7 @@ const ListingDetailPageContent = React.memo(function ListingDetailPageContent() 
                 <CardTitle>Features & Options</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {listing.features.map((feature, index) => (
                     <div key={index} className="flex items-center space-x-2">
                       <CheckCircle className="h-4 w-4 text-green-500" />
@@ -551,7 +551,7 @@ const ListingDetailPageContent = React.memo(function ListingDetailPageContent() 
                     {isCreatingConversation ? "Starting..." : isSellerViewing ? "Your Listing" : "Message Seller"}
                   </Button>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <Button
                       variant="outline"
                       size="sm"
@@ -589,69 +589,79 @@ const ListingDetailPageContent = React.memo(function ListingDetailPageContent() 
               <CardTitle>Seller Information</CardTitle>
             </CardHeader>
             <CardContent>
-              {seller ? (
-                <>
-                  <div className="flex items-center space-x-3 mb-4">
-                    <div className="h-12 w-12">
-                      <Image
-                        src={seller?.avatar_url || "/placeholder.svg"}
-                        alt="Seller Avatar"
-                        width={48}
-                        height={48}
-                        className="rounded-full object-cover"
-                      />
-                    </div>
-                    <div>
-                      <h3 className="font-semibold">
-                        {seller?.first_name && seller?.last_name
-                          ? `${seller.first_name} ${seller.last_name}`
-                          : seller?.business_name || "Seller"}
-                      </h3>
-                      <div className="flex items-center">
-                        <Star className="h-4 w-4 fill-yellow-400 text-yellow-400 mr-1" />
-                        <span className="text-sm text-gray-600">
-                          {seller?.average_rating || 5.0} ({seller?.total_reviews || 0} reviews)
-                        </span>
+              {user ? (
+                seller ? (
+                  <>
+                    <div className="flex items-center space-x-3 mb-4">
+                      <div className="h-12 w-12">
+                        <Image
+                          src={seller?.avatar_url || "/placeholder.svg"}
+                          alt="Seller Avatar"
+                          width={48}
+                          height={48}
+                          className="rounded-full object-cover"
+                        />
                       </div>
-                      {seller?.city && seller?.state && (
-                        <p className="text-sm text-gray-600">
-                          {seller.city}, {seller.state}
-                        </p>
+                      <div>
+                        <h3 className="font-semibold">
+                          {seller?.first_name && seller?.last_name
+                            ? `${seller.first_name} ${seller.last_name}`
+                            : seller?.business_name || "Seller"}
+                        </h3>
+                        <div className="flex items-center">
+                          <Star className="h-4 w-4 fill-yellow-400 text-yellow-400 mr-1" />
+                          <span className="text-sm text-gray-600">
+                            {seller?.average_rating || 5.0} ({seller?.total_reviews || 0} reviews)
+                          </span>
+                        </div>
+                        {seller?.city && seller?.state && (
+                          <p className="text-sm text-gray-600">
+                            {seller.city}, {seller.state}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 text-sm text-gray-600">
+                      {seller?.is_verified && (
+                        <div className="flex items-center">
+                          <Shield className="h-4 w-4 mr-2 text-green-500" />
+                          <span>Identity verified</span>
+                        </div>
+                      )}
+                      <div className="flex items-center">
+                        <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
+                        <span>Responsive seller</span>
+                      </div>
+                      {seller?.created_at && (
+                        <div className="flex items-center">
+                          <Calendar className="h-4 w-4 mr-2 text-gray-400" />
+                          <span>Member since {new Date(seller.created_at).getFullYear()}</span>
+                        </div>
                       )}
                     </div>
-                  </div>
 
-                  <div className="space-y-2 text-sm text-gray-600">
-                    {seller?.is_verified && (
-                      <div className="flex items-center">
-                        <Shield className="h-4 w-4 mr-2 text-green-500" />
-                        <span>Identity verified</span>
-                      </div>
-                    )}
-                    <div className="flex items-center">
-                      <CheckCircle className="h-4 w-4 mr-2 text-green-500" />
-                      <span>Responsive seller</span>
+                    <div className="space-y-2">
+                      <Button variant="outline" className="w-full mt-4" asChild>
+                        <Link href={`/seller/${seller?.id}`}>View Seller Profile</Link>
+                      </Button>
                     </div>
-                    {seller?.created_at && (
-                      <div className="flex items-center">
-                        <Calendar className="h-4 w-4 mr-2 text-gray-400" />
-                        <span>Member since {new Date(seller.created_at).getFullYear()}</span>
-                      </div>
-                    )}
+                  </>
+                ) : (
+                  <div className="text-center p-4 bg-blue-50 rounded-lg">
+                    <Shield className="h-8 w-8 text-blue-600 mx-auto mb-3" />
+                    <p className="text-blue-800 font-medium mb-2">Seller information protected</p>
+                    <p className="text-blue-600 text-sm">
+                      Sign in to view seller details, ratings, and contact information
+                    </p>
                   </div>
-
-                  <div className="space-y-2">
-                    <Button variant="outline" className="w-full mt-4" asChild>
-                      <Link href={`/seller/${seller?.id}`}>View Seller Profile</Link>
-                    </Button>
-                  </div>
-                </>
+                )
               ) : (
                 <div className="text-center p-4 bg-blue-50 rounded-lg">
                   <Shield className="h-8 w-8 text-blue-600 mx-auto mb-3" />
-                  <p className="text-blue-800 font-medium mb-2">Seller information protected</p>
+                  <p className="text-blue-800 font-medium mb-2">Sign in to view seller information</p>
                   <p className="text-blue-600 text-sm">
-                    Sign in to view seller details, ratings, and contact information
+                    Create an account or sign in to view seller details, ratings, and contact information
                   </p>
                 </div>
               )}

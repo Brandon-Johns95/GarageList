@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/lib/auth-context"
-import { X, Eye, EyeOff } from "lucide-react"
+import { X, Eye, EyeOff, Mail } from "lucide-react"
 
 type SignUpModalProps = {
   isOpen: boolean
@@ -179,9 +179,19 @@ export function SignUpModal({ isOpen, onClose, onSwitchToSignIn }: SignUpModalPr
             </div>
           </CardHeader>
           <CardContent className="text-center">
+            <div className="flex justify-center mb-4">
+              <Mail className="h-12 w-12 text-blue-600" />
+            </div>
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">Check Your Email</h3>
             <p className="text-gray-600 mb-4">
-              We've sent you a confirmation email. Please check your inbox and click the link to verify your account.
+              We've sent you a confirmation email with a verification link. Please check your inbox and click the link
+              to verify your account.
             </p>
+            <div className="bg-blue-50 p-3 rounded-lg mb-4">
+              <p className="text-sm text-blue-800">
+                After verifying your email, you'll be redirected back to sign in to your new account.
+              </p>
+            </div>
             <Button onClick={onClose} className="w-full">
               Got it
             </Button>
