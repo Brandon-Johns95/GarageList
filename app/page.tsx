@@ -47,77 +47,85 @@ const bodyTypes = [
   { value: "atv", label: "ATV" },
 ]
 
-// PSEUDOCODE: Memoized vehicle card component for performance
+// PSEUDOCODE: Memoized vehicle card component for performance - Updated for mobile
 const VehicleCard = React.memo(({ car, getDistance, selectedLocation }: any) => {
   // PSEUDOCODE: Calculate distance data for this specific vehicle
   const distanceData = useMemo(() => getDistance(car.id), [car.id, getDistance])
 
   return (
-    <Card key={car.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+    <Card key={car.id} className="overflow-hidden hover:shadow-lg transition-shadow w-full h-full">
       <div className="relative">
         <Image
           src={car.images[0] || "/placeholder.svg"}
           alt={car.title}
           width={300}
           height={200}
-          className="w-full h-48 object-cover"
+          className="w-full h-32 sm:h-40 md:h-48 object-cover"
           loading="lazy"
           placeholder="blur"
           blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAABAAEDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAUEAEAAAAAAAAAAAAAAAAAAAAA/8QAFQEBAQAAAAAAAAAAAAAAAAAAAAX/xAAUEQEAAAAAAAAAAAAAAAAAAAAA/9oADAMBAAIRAxEAPwCdABmX/9k="
         />
         <FavoriteButton
           listingId={car.id}
-          className="absolute top-2 right-2 bg-white/80 hover:bg-white"
+          className="absolute top-1 right-1 sm:top-2 sm:right-2 bg-white/80 hover:bg-white w-6 h-6 sm:w-8 sm:h-8"
           variant="ghost"
           size="sm"
         />
-        <Badge className="absolute top-2 left-2 bg-green-600">{car.condition}</Badge>
+        <Badge className="absolute top-1 left-1 sm:top-2 sm:left-2 bg-green-600 text-xs px-1 py-0.5 sm:px-2 sm:py-1">
+          {car.condition}
+        </Badge>
 
         {car.status === "pending" && (
-          <Badge className="absolute top-12 left-2 bg-yellow-500 text-white text-xs">Pending Sale</Badge>
+          <Badge className="absolute top-6 left-1 sm:top-10 sm:left-2 bg-yellow-500 text-white text-xs px-1 py-0.5">
+            Pending Sale
+          </Badge>
         )}
       </div>
 
-      <CardContent className="p-4">
-        <div className="space-y-3">
+      <CardContent className="p-2 sm:p-3 md:p-4">
+        <div className="space-y-1 sm:space-y-2 md:space-y-3">
           <div>
-            <h3 className="font-semibold text-lg text-gray-900 line-clamp-2">{car.title}</h3>
-            <p className="text-2xl font-bold text-blue-600">${safeToLocaleString(car.price)}</p>
+            <h3 className="font-semibold text-xs sm:text-sm md:text-lg text-gray-900 line-clamp-2 leading-tight">
+              {car.title}
+            </h3>
+            <p className="text-sm sm:text-lg md:text-2xl font-bold text-blue-600">${safeToLocaleString(car.price)}</p>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
+          <div className="grid grid-cols-2 gap-1 text-xs sm:text-sm text-gray-600">
             <div className="flex items-center">
-              <Calendar className="h-4 w-4 mr-1" />
-              {car.year}
+              <Calendar className="h-3 w-3 mr-1 flex-shrink-0" />
+              <span className="truncate">{car.year}</span>
             </div>
             <div className="flex items-center">
-              <Gauge className="h-4 w-4 mr-1" />
-              {safeToLocaleString(car.mileage)} mi
+              <Gauge className="h-3 w-3 mr-1 flex-shrink-0" />
+              <span className="truncate">{safeToLocaleString(car.mileage)} mi</span>
             </div>
             <div className="flex items-center">
-              <Fuel className="h-4 w-4 mr-1" />
-              {car.fuelType}
+              <Fuel className="h-3 w-3 mr-1 flex-shrink-0" />
+              <span className="truncate">{car.fuelType}</span>
             </div>
             <div className="flex items-center">
-              <Users className="h-4 w-4 mr-1" />
-              {car.transmission}
+              <Users className="h-3 w-3 mr-1 flex-shrink-0" />
+              <span className="truncate">{car.transmission}</span>
             </div>
           </div>
 
-          <div className="flex items-center text-sm text-gray-600">
-            <MapPin className="h-4 w-4 mr-1" />
-            {car.location}
+          <div className="flex items-center text-xs sm:text-sm text-gray-600">
+            <MapPin className="h-3 w-3 mr-1 flex-shrink-0" />
+            <span className="truncate">{car.location}</span>
           </div>
 
           {distanceData?.distance && (
-            <div className="flex items-center text-sm text-blue-600">
-              <MapPin className="h-4 w-4 mr-1" />
-              {formatDistance(distanceData.distance.miles)}
-              {distanceData.duration && ` (${distanceData.duration.text})`}
+            <div className="flex items-center text-xs sm:text-sm text-blue-600">
+              <MapPin className="h-3 w-3 mr-1 flex-shrink-0" />
+              <span className="truncate">
+                {formatDistance(distanceData.distance.miles)}
+                {distanceData.duration && ` (${distanceData.duration.text})`}
+              </span>
             </div>
           )}
 
-          <Button className="w-full mt-3" asChild>
+          <Button className="w-full mt-1 sm:mt-2 md:mt-3 text-xs sm:text-sm h-7 sm:h-8 md:h-10" asChild>
             <Link href={`/listing/${car.id}`}>View Details</Link>
           </Button>
         </div>
@@ -572,57 +580,65 @@ export default function CarMarketplace() {
       <Header />
 
       {/* PSEUDOCODE: Hero section with search and location controls */}
-      <section className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-12">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">
+      <section className="bg-gradient-to-r from-blue-600 to-blue-800 text-white py-6 sm:py-12">
+        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 text-center">
+          <h1 className="text-xl sm:text-2xl md:text-4xl lg:text-5xl font-bold mb-4 leading-tight">
             {selectedLocation
               ? `Vehicles in ${selectedLocation.city}, ${selectedLocation.state}`
               : "Browse All Vehicles"}
           </h1>
-          <p className="text-xl mb-8 text-blue-100">Your trusted garage-to-garage marketplace</p>
+          <p className="text-base sm:text-xl mb-6 sm:mb-8 text-blue-100">Your trusted garage-to-garage marketplace</p>
 
           {vehiclePreferences && (
             <div className="flex justify-center mb-4">
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 justify-center">
                 {vehiclePreferences.bodyType !== "any" && (
-                  <Badge variant="secondary">
+                  <Badge variant="secondary" className="text-xs">
                     {bodyTypes.find((t) => t.value === vehiclePreferences.bodyType)?.label}
                   </Badge>
                 )}
-                {vehiclePreferences.make !== "any" && <Badge variant="secondary">{vehiclePreferences.make}</Badge>}
+                {vehiclePreferences.make !== "any" && (
+                  <Badge variant="secondary" className="text-xs">
+                    {vehiclePreferences.make}
+                  </Badge>
+                )}
               </div>
             </div>
           )}
 
           <div className="max-w-2xl mx-auto space-y-4">
-            <div className="flex justify-center gap-3">
-              <Button variant="secondary" onClick={handleChangeLocation} className="flex items-center space-x-2">
-                <MapPin className="h-4 w-4" />
-                <span>
+            <div className="flex flex-col sm:flex-row justify-center gap-2 sm:gap-3">
+              <Button
+                variant="secondary"
+                onClick={handleChangeLocation}
+                className="flex items-center justify-center space-x-2 text-xs sm:text-sm"
+              >
+                <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="truncate">
                   {selectedLocation
                     ? `Change from ${selectedLocation.city}, ${selectedLocation.state}`
                     : "Set Location"}
                 </span>
               </Button>
               {vehiclePreferences && (
-                <Button variant="secondary" size="sm" onClick={handleChangePreferences}>
+                <Button variant="secondary" size="sm" onClick={handleChangePreferences} className="text-xs sm:text-sm">
                   Change Preferences
                 </Button>
               )}
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-5 w-5" />
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4 sm:h-5 sm:w-5" />
                 <Input
                   placeholder="Search by make, model, or keyword..."
                   value={filters.searchTerm}
                   onChange={(e) => setFilters((prev) => ({ ...prev, searchTerm: e.target.value }))}
-                  className="pl-10 h-12 text-gray-900"
+                  className="pl-10 h-10 sm:h-12 text-gray-900 text-sm sm:text-base"
                 />
               </div>
-              <Button variant="secondary" size="lg" className="h-12">
-                <Search className="h-5 w-5 mr-2" />
+              <Button variant="secondary" size="lg" className="h-10 sm:h-12 w-full sm:w-auto">
+                <Search className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                 Search
               </Button>
             </div>
@@ -630,10 +646,10 @@ export default function CarMarketplace() {
         </div>
       </section>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex gap-8">
+      <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
+        <div className="flex flex-col lg:flex-row gap-4 lg:gap-8">
           {/* PSEUDOCODE: Advanced filters sidebar */}
-          <aside className="w-80 space-y-6">
+          <aside className="w-full lg:w-80 space-y-6">
             <AdvancedFilters
               filters={filters}
               onFiltersChange={setFilters}
@@ -644,17 +660,17 @@ export default function CarMarketplace() {
 
           {/* PSEUDOCODE: Main content area with listings */}
           <main className="flex-1">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-gray-900">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-3">
+              <h2 className="text-lg sm:text-2xl font-bold text-gray-900">
                 {filteredCars.length} {filteredCars.length === 1 ? "Vehicle" : "Vehicles"} Available
                 {selectedLocation && (
-                  <span className="text-lg font-normal text-gray-600 ml-2">
+                  <span className="block sm:inline text-sm sm:text-lg font-normal text-gray-600 sm:ml-2">
                     in {selectedLocation.city}, {selectedLocation.state}
                   </span>
                 )}
               </h2>
               <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="w-48">
+                <SelectTrigger className="w-full sm:w-48">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -668,20 +684,20 @@ export default function CarMarketplace() {
               </Select>
             </div>
 
-            {/* PSEUDOCODE: Vehicle listings grid with optimized rendering */}
+            {/* PSEUDOCODE: Vehicle listings grid with mobile-optimized layout */}
             {filteredCars.length > 0 ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3 gap-2 sm:gap-4 md:gap-6">
                 {filteredCars.map((car) => (
                   <VehicleCard key={car.id} car={car} getDistance={getDistance} selectedLocation={selectedLocation} />
                 ))}
               </div>
             ) : (
-              <div className="text-center py-12">
+              <div className="text-center py-8 sm:py-12 px-4">
                 <div className="text-gray-400 mb-4">
-                  <Search className="h-16 w-16 mx-auto" />
+                  <Search className="h-12 w-12 sm:h-16 sm:w-16 mx-auto" />
                 </div>
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No vehicles found</h3>
-                <p className="text-gray-600 mb-4">
+                <h3 className="text-base sm:text-lg font-medium text-gray-900 mb-2">No vehicles found</h3>
+                <p className="text-gray-600 mb-4 text-sm sm:text-base">
                   {carListings.length === 0
                     ? selectedLocation
                       ? `No vehicles have been listed in ${selectedLocation.city}, ${selectedLocation.state} yet. Be the first to list your vehicle!`
