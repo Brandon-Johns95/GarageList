@@ -41,27 +41,27 @@ export function Header() {
   return (
     <>
       {/* STEP 3: Main navigation header */}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-50 w-full mobile-container">
-        <div className="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-12 sm:h-14 lg:h-16">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-50 w-full">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
             {/* STEP 4: Logo and main navigation */}
             <Link href="/" className="flex items-center flex-shrink-0">
-              <GarageListLogo className="h-6 sm:h-8 w-auto" />
+              <GarageListLogo className="h-8 w-auto" />
             </Link>
 
             {/* STEP 5: Center - Location display and navigation */}
-            <div className="flex-1 flex justify-center items-center space-x-2 sm:space-x-8 mx-2">
+            <div className="flex-1 flex justify-center items-center space-x-8">
               {selectedLocation && (
-                <div className="hidden sm:flex items-center space-x-2 text-xs sm:text-sm text-gray-600">
-                  <MapPin className="h-3 w-3 sm:h-4 sm:w-4" />
-                  <span className="truncate max-w-32 sm:max-w-none">
+                <div className="flex items-center space-x-2 text-sm text-gray-600">
+                  <MapPin className="h-4 w-4" />
+                  <span>
                     {selectedLocation.city}, {selectedLocation.state}
                   </span>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={clearLocation}
-                    className="text-blue-600 hover:text-blue-800 text-xs sm:text-sm p-1 sm:p-2"
+                    className="text-blue-600 hover:text-blue-800"
                   >
                     Change
                   </Button>
@@ -70,14 +70,14 @@ export function Header() {
 
               {/* Navigation buttons for authenticated users */}
               {user && (
-                <nav className="hidden lg:flex items-center space-x-1">
+                <nav className="hidden md:flex items-center space-x-1">
                   <Link href="/">
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="flex items-center space-x-1 text-gray-700 hover:text-gray-900 text-xs sm:text-sm"
+                      className="flex items-center space-x-1 text-gray-700 hover:text-gray-900"
                     >
-                      <ShoppingCart className="h-3 w-3 sm:h-4 sm:w-4" />
+                      <ShoppingCart className="h-4 w-4" />
                       <span>Buy</span>
                     </Button>
                   </Link>
@@ -85,9 +85,9 @@ export function Header() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="flex items-center space-x-1 text-gray-700 hover:text-gray-900 text-xs sm:text-sm"
+                      className="flex items-center space-x-1 text-gray-700 hover:text-gray-900"
                     >
-                      <DollarSign className="h-3 w-3 sm:h-4 sm:w-4" />
+                      <DollarSign className="h-4 w-4" />
                       <span>Sell</span>
                     </Button>
                   </Link>
@@ -95,9 +95,9 @@ export function Header() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="flex items-center space-x-1 text-gray-700 hover:text-gray-900 text-xs sm:text-sm"
+                      className="flex items-center space-x-1 text-gray-700 hover:text-gray-900"
                     >
-                      <LayoutDashboard className="h-3 w-3 sm:h-4 sm:w-4" />
+                      <LayoutDashboard className="h-4 w-4" />
                       <span>MyGarage</span>
                     </Button>
                   </Link>
@@ -105,9 +105,9 @@ export function Header() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className="flex items-center space-x-1 text-gray-700 hover:text-gray-900 text-xs sm:text-sm"
+                      className="flex items-center space-x-1 text-gray-700 hover:text-gray-900"
                     >
-                      <MessageSquare className="h-3 w-3 sm:h-4 sm:w-4" />
+                      <MessageSquare className="h-4 w-4" />
                       <span>Messages</span>
                     </Button>
                   </Link>
@@ -116,15 +116,11 @@ export function Header() {
             </div>
 
             {/* STEP 6: Right side navigation */}
-            <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
+            <div className="flex items-center space-x-2 flex-shrink-0">
               {/* Support link - visible to all users */}
               <Link href="/support">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="flex items-center space-x-1 touch-target text-xs sm:text-sm p-1 sm:p-2"
-                >
-                  <HelpCircle className="h-3 w-3 sm:h-4 sm:w-4" />
+                <Button variant="ghost" size="sm" className="flex items-center space-x-1">
+                  <HelpCircle className="h-4 w-4" />
                   <span className="hidden sm:inline">Support</span>
                 </Button>
               </Link>
@@ -142,21 +138,17 @@ export function Header() {
 
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="flex items-center space-x-1 sm:space-x-2 touch-target text-xs sm:text-sm p-1 sm:p-2"
-                      >
+                      <Button variant="ghost" size="sm" className="flex items-center space-x-2">
                         {user.user_metadata?.avatar_url ? (
                           <img
                             src={user.user_metadata.avatar_url || "/placeholder.svg"}
                             alt="Profile"
-                            className="h-5 w-5 sm:h-6 sm:w-6 rounded-full object-cover"
+                            className="h-6 w-6 rounded-full object-cover"
                           />
                         ) : (
-                          <User className="h-3 w-3 sm:h-4 sm:w-4" />
+                          <User className="h-4 w-4" />
                         )}
-                        <span className="hidden md:inline max-w-16 lg:max-w-24 xl:max-w-32 truncate">
+                        <span className="hidden sm:inline max-w-32 truncate">
                           Welcome{" "}
                           {user.user_metadata?.full_name?.split(" ")[0] ||
                             user.user_metadata?.name?.split(" ")[0] ||
@@ -168,7 +160,7 @@ export function Header() {
                         </span>
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="w-48 sm:w-56">
+                    <DropdownMenuContent align="end" className="w-56">
                       {/* Mobile navigation items - only show on small screens */}
                       <div className="md:hidden">
                         <DropdownMenuItem asChild>
@@ -201,12 +193,6 @@ export function Header() {
                             Messages
                           </Link>
                         </DropdownMenuItem>
-                        {selectedLocation && (
-                          <DropdownMenuItem onClick={clearLocation} className="flex items-center sm:hidden">
-                            <MapPin className="h-4 w-4 mr-2" />
-                            Change Location
-                          </DropdownMenuItem>
-                        )}
                         <DropdownMenuSeparator />
                       </div>
                       {/* Desktop Profile button */}
@@ -229,17 +215,10 @@ export function Header() {
                  *   2. SHOW sign up button
                  */
                 <>
-                  <Button
-                    variant="ghost"
-                    onClick={() => setShowSignIn(true)}
-                    className="touch-target text-xs sm:text-sm p-1 sm:p-2"
-                  >
+                  <Button variant="ghost" onClick={() => setShowSignIn(true)}>
                     Sign In
                   </Button>
-                  <Button
-                    onClick={() => setShowSignUp(true)}
-                    className="bg-blue-600 hover:bg-blue-700 text-white touch-target text-xs sm:text-sm p-1 sm:p-2"
-                  >
+                  <Button onClick={() => setShowSignUp(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
                     Sign Up
                   </Button>
                 </>

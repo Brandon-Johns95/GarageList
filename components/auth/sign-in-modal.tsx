@@ -1,149 +1,246 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
-import { Dialog } from "@headlessui/react"
+
+import { useState, useEffect } from "react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/lib/auth-context"
-import { Eye, EyeOff } from "lucide-react"
+import { X, Eye, EyeOff } from "lucide-react"
 
 type SignInModalProps = {
   isOpen: boolean
   onClose: () => void
   onSwitchToSignUp: () => void
-  onSignInSuccess?: () => void
 }
 
-export function SignInModal({ isOpen, onClose, onSwitchToSignUp, onSignInSuccess }: SignInModalProps) {
-  const [formData, setFormData] = useState({
-    email: "",
-    password: "",
-    rememberMe: false,
-  })
+export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalProps) {
+  const [email, setEmail] = useState("")
+  const [password, setPassword] = useState("")
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-  const [success, setSuccess] = useState(false)
-  const [showPassword, setShowPassword] = useState(false)
-  const { signIn: authSignIn, user } = useAuth()
+  const [rememberMe, setRememberMe] = useState(true)
+  const [showForgotPassword, setShowForgotPassword] = useState(false)
+  const [resetEmail, setResetEmail] = useState("")
+  const [resetLoading, setResetLoading] = useState(false)
+  const [resetSuccess, setResetSuccess] = useState(false)
+  const { signIn, resetPassword, user } = useAuth()
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.type === "checkbox" ? e.target.checked : e.target.value,
-    })
-  }
+  // Load remember me preference on mount
+  useEffect(() => {
+    try {
+      const remembered = localStorage.getItem("garage_list_remember_me") === "true"
+      setRememberMe(remembered)
+    } catch (e) {
+      // Ignore localStorage errors
+    }
+  }, [])
+
+  useEffect(() => {
+    if (user && isOpen) {
+      // User is now authenticated, close the modal and reset loading
+      setLoading(false)
+      onClose()
+    }
+  }, [user, isOpen, onClose])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError("")
 
-    const { error: authError } = await authSignIn(formData.email, formData.password, formData.rememberMe)
+    try {
+      const { error } = await signIn(email, password, rememberMe)
 
-    if (authError) {
-      setError(authError.message)
-    } else {
-      setSuccess(true)
-      // Call the success callback if provided
-      if (onSignInSuccess) {
-        setTimeout(() => {
-          onSignInSuccess()
-        }, 1000)
+      if (error) {
+        setError(error.message)
+        setLoading(false)
       } else {
-        setTimeout(() => {
-          onClose()
-        }, 1000)
+        // Reset form on success
+        setEmail("")
+        setPassword("")
+        setError("")
+        // Don't set loading to false here - let the auth state change handle it
       }
+    } catch (error) {
+      console.error("Unexpected error during sign in:", error)
+      setError("An unexpected error occurred. Please try again.")
+      setLoading(false)
     }
-
-    setLoading(false)
   }
 
-  return (
-    <Dialog open={isOpen} onClose={onClose} className="relative z-50">
-      <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setResetLoading(true)
+    setError("")
 
-      <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="mx-auto max-w-sm rounded bg-white">
-          <Dialog.Title className="p-4 text-lg font-medium">Sign In</Dialog.Title>
-          <form className="p-4" onSubmit={handleSubmit}>
-            {error && <div className="mb-4 rounded bg-red-100 px-4 py-2 text-sm text-red-500">{error}</div>}
-            {success && (
-              <div className="mb-4 rounded bg-green-100 px-4 py-2 text-sm text-green-500">Signed in successfully!</div>
-            )}
-            <div className="mb-4">
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email
-              </label>
-              <input
-                type="email"
-                name="email"
-                id="email"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                value={formData.email}
-                onChange={handleChange}
-                required
-              />
+    try {
+      const { error } = await resetPassword(resetEmail)
+
+      if (error) {
+        setError(error.message)
+      } else {
+        setResetSuccess(true)
+      }
+    } catch (error) {
+      console.error("Unexpected error during password reset:", error)
+      setError("An unexpected error occurred. Please try again.")
+    } finally {
+      setResetLoading(false)
+    }
+  }
+
+  const resetForgotPasswordForm = () => {
+    setShowForgotPassword(false)
+    setResetEmail("")
+    setResetSuccess(false)
+    setError("")
+  }
+
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle>{showForgotPassword ? "Reset Password" : "Sign In"}</CardTitle>
+            <Button variant="ghost" size="icon" onClick={onClose}>
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {showForgotPassword ? (
+            // Forgot Password Form
+            <div className="space-y-4">
+              {resetSuccess ? (
+                <div className="text-center space-y-4">
+                  <Alert className="border-green-200 bg-green-50">
+                    <AlertDescription className="text-green-800">
+                      Password reset email sent! Check your inbox and follow the instructions to reset your password.
+                    </AlertDescription>
+                  </Alert>
+                  <Button onClick={resetForgotPasswordForm} className="w-full">
+                    Back to Sign In
+                  </Button>
+                </div>
+              ) : (
+                <form onSubmit={handleForgotPassword} className="space-y-4">
+                  {error && (
+                    <Alert className="border-red-200 bg-red-50">
+                      <AlertDescription className="text-red-800">{error}</AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div>
+                    <Label htmlFor="reset-email">Email Address</Label>
+                    <Input
+                      id="reset-email"
+                      type="email"
+                      value={resetEmail}
+                      onChange={(e) => setResetEmail(e.target.value)}
+                      placeholder="Enter your email address"
+                      required
+                      disabled={resetLoading}
+                    />
+                  </div>
+
+                  <Button type="submit" className="w-full" disabled={resetLoading}>
+                    {resetLoading ? "Sending..." : "Send Reset Email"}
+                  </Button>
+
+                  <Button type="button" variant="outline" onClick={resetForgotPasswordForm} className="w-full">
+                    Back to Sign In
+                  </Button>
+                </form>
+              )}
             </div>
-            <div className="mb-4">
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  type={showPassword ? "text" : "password"}
-                  name="password"
-                  id="password"
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"
-                  value={formData.password}
-                  onChange={handleChange}
+          ) : (
+            // Sign In Form
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {error && (
+                <Alert className="border-red-200 bg-red-50">
+                  <AlertDescription className="text-red-800">{error}</AlertDescription>
+                </Alert>
+              )}
+
+              <div>
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
+                  disabled={loading}
                 />
-                <div className="absolute inset-y-0 right-0 pr-3 flex items-center text-sm leading-5">
-                  <button
+              </div>
+
+              <div>
+                <Label htmlFor="password">Password</Label>
+                <div className="relative">
+                  <Input
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    disabled={loading}
+                  />
+                  <Button
                     type="button"
+                    variant="ghost"
+                    size="icon"
+                    className="absolute right-0 top-0 h-full px-3"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="text-gray-500 hover:text-gray-700 focus:outline-none focus:shadow-outline"
                   >
-                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
-                  </button>
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
                 </div>
               </div>
-            </div>
-            <div className="mb-4 flex items-center">
-              <input
-                type="checkbox"
-                name="rememberMe"
-                id="rememberMe"
-                className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                checked={formData.rememberMe}
-                onChange={handleChange}
-              />
-              <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-900">
-                Remember me
-              </label>
-            </div>
-            <div>
-              <button
-                type="submit"
-                className="inline-flex w-full items-center justify-center rounded-md border border-transparent bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-                disabled={loading}
-              >
-                {loading ? "Signing in..." : "Sign In"}
-              </button>
-            </div>
-            <div className="mt-4 text-sm text-gray-500">
-              Don't have an account?{" "}
-              <button
-                type="button"
-                className="font-medium text-indigo-600 hover:text-indigo-500"
-                onClick={onSwitchToSignUp}
-              >
-                Sign up
-              </button>
-            </div>
-          </form>
-        </Dialog.Panel>
-      </div>
-    </Dialog>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  id="remember-me"
+                  type="checkbox"
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                />
+                <Label htmlFor="remember-me" className="text-sm text-gray-600">
+                  Keep me signed in
+                </Label>
+              </div>
+
+              <Button type="submit" className="w-full" disabled={loading}>
+                {loading ? "Signing In..." : "Sign In"}
+              </Button>
+
+              <div className="text-center space-y-2">
+                <Button
+                  type="button"
+                  variant="link"
+                  className="p-0 h-auto text-sm"
+                  onClick={() => setShowForgotPassword(true)}
+                >
+                  Forgot your password?
+                </Button>
+                <div>
+                  <span className="text-sm text-gray-600">Don't have an account? </span>
+                  <Button type="button" variant="link" className="p-0 h-auto" onClick={onSwitchToSignUp}>
+                    Sign Up
+                  </Button>
+                </div>
+              </div>
+            </form>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   )
 }

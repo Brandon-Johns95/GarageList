@@ -26,48 +26,13 @@ export default function ResetPasswordPage() {
   const searchParams = useSearchParams()
 
   useEffect(() => {
-    const handleAuthSession = async () => {
-      try {
-        // Get the current session to see if we have valid tokens
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession()
+    // Check if we have the required tokens in the URL
+    const accessToken = searchParams.get("access_token")
+    const refreshToken = searchParams.get("refresh_token")
 
-        if (error) {
-          console.error("Session error:", error)
-          setError("Invalid reset link. Please request a new password reset.")
-          return
-        }
-
-        // If no session, check URL parameters for auth tokens
-        if (!session) {
-          const accessToken = searchParams.get("access_token")
-          const refreshToken = searchParams.get("refresh_token")
-          const type = searchParams.get("type")
-
-          if (type === "recovery" && accessToken && refreshToken) {
-            // Set the session using the tokens from the URL
-            const { error: sessionError } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            })
-
-            if (sessionError) {
-              console.error("Error setting session:", sessionError)
-              setError("Invalid reset link. Please request a new password reset.")
-            }
-          } else {
-            setError("Invalid reset link. Please request a new password reset.")
-          }
-        }
-      } catch (error) {
-        console.error("Error handling auth session:", error)
-        setError("Invalid reset link. Please request a new password reset.")
-      }
+    if (!accessToken || !refreshToken) {
+      setError("Invalid reset link. Please request a new password reset.")
     }
-
-    handleAuthSession()
   }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -358,8 +358,8 @@ export function AdvancedFilters({
 
         {/* Mobile Filter Panel */}
         {isOpen && (
-          <div className="lg:hidden fixed inset-0 z-50 bg-white overflow-y-auto safe-area-inset">
-            <div className="p-4 pb-safe">
+          <div className="lg:hidden fixed inset-0 z-50 bg-white overflow-y-auto">
+            <div className="p-4">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold">Filters</h2>
                 <Button variant="ghost" size="sm" onClick={() => setIsOpen(false)}>
@@ -378,7 +378,7 @@ export function AdvancedFilters({
                 getCurrentFeatures={getCurrentFeatures}
                 selectedLocation={selectedLocation}
               />
-              <div className="mt-6 flex flex-col sm:flex-row gap-2">
+              <div className="mt-6 flex gap-2">
                 <Button onClick={() => setIsOpen(false)} className="flex-1">
                   Apply Filters
                 </Button>
@@ -480,167 +480,51 @@ const FilterContent = ({
               {/* Price Range */}
               <div>
                 <Label className="text-sm font-medium mb-3 block">Price Range</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div>
-                    <Select
-                      value={filters.priceRange[0].toString()}
-                      onValueChange={(value) =>
-                        updateFilter("priceRange", [Number.parseInt(value), filters.priceRange[1]])
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Min Price" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">No Min</SelectItem>
-                        <SelectItem value="5000">$5,000</SelectItem>
-                        <SelectItem value="10000">$10,000</SelectItem>
-                        <SelectItem value="15000">$15,000</SelectItem>
-                        <SelectItem value="20000">$20,000</SelectItem>
-                        <SelectItem value="25000">$25,000</SelectItem>
-                        <SelectItem value="30000">$30,000</SelectItem>
-                        <SelectItem value="40000">$40,000</SelectItem>
-                        <SelectItem value="50000">$50,000</SelectItem>
-                        <SelectItem value="75000">$75,000</SelectItem>
-                        <SelectItem value="100000">$100,000</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Select
-                      value={filters.priceRange[1].toString()}
-                      onValueChange={(value) =>
-                        updateFilter("priceRange", [filters.priceRange[0], Number.parseInt(value)])
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Max Price" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="10000">$10,000</SelectItem>
-                        <SelectItem value="15000">$15,000</SelectItem>
-                        <SelectItem value="20000">$20,000</SelectItem>
-                        <SelectItem value="25000">$25,000</SelectItem>
-                        <SelectItem value="30000">$30,000</SelectItem>
-                        <SelectItem value="40000">$40,000</SelectItem>
-                        <SelectItem value="50000">$50,000</SelectItem>
-                        <SelectItem value="75000">$75,000</SelectItem>
-                        <SelectItem value="100000">$100,000</SelectItem>
-                        <SelectItem value="150000">$150,000</SelectItem>
-                        <SelectItem value="200000">$200,000</SelectItem>
-                        <SelectItem value="500000">No Max</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <Slider
+                  value={filters.priceRange}
+                  onValueChange={(value) => updateFilter("priceRange", value)}
+                  max={500000}
+                  min={0}
+                  step={5000}
+                  className="mb-2"
+                />
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>${filters.priceRange[0].toLocaleString()}</span>
+                  <span>${filters.priceRange[1].toLocaleString()}</span>
                 </div>
               </div>
 
               {/* Year Range */}
               <div>
                 <Label className="text-sm font-medium mb-3 block">Year Range</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div>
-                    <Select
-                      value={filters.yearRange[0].toString()}
-                      onValueChange={(value) =>
-                        updateFilter("yearRange", [Number.parseInt(value), filters.yearRange[1]])
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Min Year" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1990">1990</SelectItem>
-                        <SelectItem value="1995">1995</SelectItem>
-                        <SelectItem value="2000">2000</SelectItem>
-                        <SelectItem value="2005">2005</SelectItem>
-                        <SelectItem value="2010">2010</SelectItem>
-                        <SelectItem value="2015">2015</SelectItem>
-                        <SelectItem value="2018">2018</SelectItem>
-                        <SelectItem value="2020">2020</SelectItem>
-                        <SelectItem value="2021">2021</SelectItem>
-                        <SelectItem value="2022">2022</SelectItem>
-                        <SelectItem value="2023">2023</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Select
-                      value={filters.yearRange[1].toString()}
-                      onValueChange={(value) =>
-                        updateFilter("yearRange", [filters.yearRange[0], Number.parseInt(value)])
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Max Year" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="2000">2000</SelectItem>
-                        <SelectItem value="2005">2005</SelectItem>
-                        <SelectItem value="2010">2010</SelectItem>
-                        <SelectItem value="2015">2015</SelectItem>
-                        <SelectItem value="2018">2018</SelectItem>
-                        <SelectItem value="2020">2020</SelectItem>
-                        <SelectItem value="2021">2021</SelectItem>
-                        <SelectItem value="2022">2022</SelectItem>
-                        <SelectItem value="2023">2023</SelectItem>
-                        <SelectItem value="2024">2024</SelectItem>
-                        <SelectItem value="2025">2025</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <Slider
+                  value={filters.yearRange}
+                  onValueChange={(value) => updateFilter("yearRange", value)}
+                  max={2023}
+                  min={1990}
+                  step={1}
+                  className="mb-2"
+                />
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>{filters.yearRange[0]}</span>
+                  <span>{filters.yearRange[1]}</span>
                 </div>
               </div>
 
               {/* Mileage Range */}
               <div>
                 <Label className="text-sm font-medium mb-3 block">Mileage Range</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  <div>
-                    <Select
-                      value={filters.mileageRange[0].toString()}
-                      onValueChange={(value) =>
-                        updateFilter("mileageRange", [Number.parseInt(value), filters.mileageRange[1]])
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Min Mileage" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="0">No Min</SelectItem>
-                        <SelectItem value="5000">5,000 mi</SelectItem>
-                        <SelectItem value="10000">10,000 mi</SelectItem>
-                        <SelectItem value="25000">25,000 mi</SelectItem>
-                        <SelectItem value="50000">50,000 mi</SelectItem>
-                        <SelectItem value="75000">75,000 mi</SelectItem>
-                        <SelectItem value="100000">100,000 mi</SelectItem>
-                        <SelectItem value="150000">150,000 mi</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Select
-                      value={filters.mileageRange[1].toString()}
-                      onValueChange={(value) =>
-                        updateFilter("mileageRange", [filters.mileageRange[0], Number.parseInt(value)])
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Max Mileage" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="5000">5,000 mi</SelectItem>
-                        <SelectItem value="10000">10,000 mi</SelectItem>
-                        <SelectItem value="25000">25,000 mi</SelectItem>
-                        <SelectItem value="50000">50,000 mi</SelectItem>
-                        <SelectItem value="75000">75,000 mi</SelectItem>
-                        <SelectItem value="100000">100,000 mi</SelectItem>
-                        <SelectItem value="150000">150,000 mi</SelectItem>
-                        <SelectItem value="200000">200,000 mi</SelectItem>
-                        <SelectItem value="300000">300,000 mi</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+                <Slider
+                  value={filters.mileageRange}
+                  onValueChange={(value) => updateFilter("mileageRange", value)}
+                  max={300000}
+                  min={0}
+                  step={5000}
+                  className="mb-2"
+                />
+                <div className="flex justify-between text-sm text-gray-600">
+                  <span>{filters.mileageRange[0].toLocaleString()} mi</span>
+                  <span>{filters.mileageRange[1].toLocaleString()} mi</span>
                 </div>
               </div>
 
