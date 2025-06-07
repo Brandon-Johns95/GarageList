@@ -78,13 +78,22 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
     setResetLoading(true)
     setError("")
 
+    if (!resetEmail || resetEmail.trim() === "") {
+      setError("Please enter your email address")
+      setResetLoading(false)
+      return
+    }
+
     try {
       const { error } = await resetPassword(resetEmail)
 
       if (error) {
+        console.error("Password reset error:", error)
         setError(error.message)
       } else {
         setResetSuccess(true)
+        // Clear any previous errors
+        setError("")
       }
     } catch (error) {
       console.error("Unexpected error during password reset:", error)

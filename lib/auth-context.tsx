@@ -25,6 +25,7 @@ type AuthContextType = {
   signUp: (email: string, password: string, userData: any) => Promise<{ error: any }>
   signOut: () => Promise<void>
   resetPassword: (email: string) => Promise<{ error: any }>
+  updateUser: (updates: { password?: string }) => Promise<{ error: any }>
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ error: any }>
   refreshProfile: () => Promise<void>
 }
@@ -60,22 +61,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // STEP 4: Setup authentication monitoring
   useEffect(() => {
-    /**
-     * PSEUDO CODE: Initial Session Setup
-     * FLOW:
-     *   1. GET current session from Supabase
-     *   2. IF session exists: LOAD user profile
-     *   3. SETUP real-time auth state listener
-     *   4. HANDLE authentication state changes
-     */
+    let mounted = true
 
     const getInitialSession = async () => {
       try {
-        // GET current session
         const {
           data: { session },
           error,
         } = await supabase.auth.getSession()
+
+        if (!mounted) return
 
         if (error) {
           console.error("Error getting session:", error)
@@ -84,31 +79,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return
         }
 
-        // SET user from session
         setUser(session?.user ?? null)
 
-        // LOAD profile if user exists
         if (session?.user) {
           await loadUserProfile(session.user.id)
         } else {
           setProfile(null)
         }
       } catch (error) {
-        console.error("Error in getInitialSession:", error)
-        setUser(null)
-        setProfile(null)
+        if (mounted) {
+          console.error("Error in getInitialSession:", error)
+          setUser(null)
+          setProfile(null)
+        }
       } finally {
-        // Always set loading to false, regardless of success or failure
-        setLoading(false)
+        if (mounted) {
+          setLoading(false)
+        }
       }
     }
 
     getInitialSession()
 
-    // SETUP real-time authentication listener
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return
+
       console.log("Auth state changed:", event, session?.user?.email)
 
       setUser(session?.user ?? null)
@@ -122,16 +119,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false)
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
   }, [])
 
-  /**
-   * PSEUDO CODE: Load User Profile
-   * FLOW:
-   *   1. QUERY user_profiles table for user data
-   *   2. IF profile exists: SET profile state
-   *   3. IF no profile: HANDLE gracefully (new user)
-   */
   const loadUserProfile = async (userId: string) => {
     try {
       const { data, error } = await supabase.from("user_profiles").select("*").eq("id", userId).single()
@@ -153,37 +146,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  /**
-   * PSEUDO CODE: Refresh Profile Data
-   * FLOW:
-   *   1. IF user is logged in: RELOAD profile from database
-   */
   const refreshProfile = async () => {
     if (user) {
       await loadUserProfile(user.id)
     }
   }
 
-  /**
-   * PSEUDO CODE: Sign In User
-   * FLOW:
-   *   1. ATTEMPT sign in with email/password
-   *   2. HANDLE remember me preference
-   *   3. RETURN success/error status
-   */
   const signIn = async (email: string, password: string, rememberMe = false) => {
     const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     })
 
-    // Simple remember me implementation - just store a flag
-    // Don't do complex session manipulation that could cause loading issues
     if (!error && rememberMe) {
       try {
         localStorage.setItem("garage_list_remember_me", "true")
       } catch (e) {
-        // Ignore localStorage errors - not critical
         console.warn("Could not save remember me preference:", e)
       }
     } else {
@@ -205,13 +183,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error }
   }
 
-  /**
-   * PSEUDO CODE: Sign Up New User
-   * FLOW:
-   *   1. CREATE new user account with email/password
-   *   2. INCLUDE additional user data in metadata
-   *   3. RETURN success/error status
-   */
+  const updateUser = async (updates: { password?: string }) => {
+    const { error } = await supabase.auth.updateUser(updates)
+    return { error }
+  }
+
   const signUp = async (email: string, password: string, userData: any) => {
     const { error } = await supabase.auth.signUp({
       email,
@@ -230,48 +206,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error }
   }
 
-  /**
-   * PSEUDO CODE: Sign Out User
-   * FLOW:
-   *   1. CLEAR remember me preference
-   *   2. CLEAR all local storage auth data
-   *   3. SIGN OUT from Supabase with proper scope
-   *   4. FORCE reload to clear any cached state
-   */
   const signOut = async () => {
     try {
-      // Clear remember me preference
       try {
         localStorage.removeItem("garage_list_remember_me")
       } catch (e) {
         // Ignore localStorage errors
       }
 
-      // Sign out from Supabase
       await supabase.auth.signOut({ scope: "local" })
 
-      // Clear state immediately
       setUser(null)
       setProfile(null)
 
-      // Force a page reload to ensure clean state
       window.location.href = "/"
     } catch (error) {
       console.error("Error signing out:", error)
-      // Even if there's an error, clear local state and redirect
       setUser(null)
       setProfile(null)
       window.location.href = "/"
     }
   }
 
-  /**
-   * PSEUDO CODE: Update User Profile
-   * FLOW:
-   *   1. VALIDATE user is logged in
-   *   2. UPDATE profile in database
-   *   3. UPDATE local state if successful
-   */
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!user) return { error: new Error("No user logged in") }
 
@@ -287,7 +243,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error }
   }
 
-  // STEP 5: Provide context value to children
   const value = {
     user,
     profile,
@@ -296,6 +251,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signUp,
     signOut,
     resetPassword,
+    updateUser,
     updateProfile,
     refreshProfile,
   }
@@ -303,14 +259,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
-/**
- * PSEUDO CODE: Authentication Hook
- * PURPOSE: Provide easy access to authentication context
- * FLOW:
- *   1. GET context from AuthContext
- *   2. VALIDATE context exists
- *   3. RETURN authentication state and methods
- */
 export function useAuth() {
   const context = useContext(AuthContext)
   if (context === undefined) {
