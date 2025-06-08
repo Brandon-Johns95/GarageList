@@ -29,12 +29,7 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
   const [resetLoading, setResetLoading] = useState(false)
   const [resetSuccess, setResetSuccess] = useState(false)
 
-  // TEMPORARILY DISABLED FOR TESTING
-  // const [cooldownActive, setCooldownActive] = useState(false)
-  // const [cooldownTime, setCooldownTime] = useState(0)
-  // const [rateLimited, setRateLimited] = useState(false)
-
-  const { signIn, resetPassword, user } = useAuth()
+  const { signIn, user } = useAuth()
 
   // Load remember me preference on mount
   useEffect(() => {
@@ -61,44 +56,8 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
       setShowForgotPassword(false)
       setResetSuccess(false)
       setError("")
-      // setRateLimited(false) // TEMPORARILY DISABLED FOR TESTING
     }
   }, [isOpen])
-
-  // TEMPORARILY DISABLED FOR TESTING
-  /*
-  // Check for existing rate limit on mount
-  useEffect(() => {
-    try {
-      const lastResetTime = localStorage.getItem("garage_list_last_reset_time")
-      if (lastResetTime) {
-        const timeSinceLastReset = Date.now() - Number.parseInt(lastResetTime)
-        const rateLimitDuration = 300000 // 5 minutes
-
-        if (timeSinceLastReset < rateLimitDuration) {
-          setRateLimited(true)
-          const remainingTime = Math.ceil((rateLimitDuration - timeSinceLastReset) / 1000)
-          setCooldownTime(remainingTime)
-          setCooldownActive(true)
-
-          const timer = setInterval(() => {
-            setCooldownTime((prev) => {
-              if (prev <= 1) {
-                clearInterval(timer)
-                setCooldownActive(false)
-                setRateLimited(false)
-                return 0
-              }
-              return prev - 1
-            })
-          }, 1000)
-        }
-      }
-    } catch (e) {
-      // Ignore localStorage errors
-    }
-  }, [])
-  */
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -125,19 +84,11 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
     }
   }
 
+  // COMPLETELY BYPASS SUPABASE EMAIL RESET
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault()
     setResetLoading(true)
     setError("")
-
-    // TEMPORARILY DISABLED FOR TESTING
-    /*
-    if (cooldownActive) {
-      setError(`Please wait ${cooldownTime} seconds before requesting another reset email.`)
-      setResetLoading(false)
-      return
-    }
-    */
 
     if (!resetEmail || resetEmail.trim() === "") {
       setError("Please enter your email address")
@@ -146,62 +97,23 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
     }
 
     try {
-      const { error } = await resetPassword(resetEmail)
+      // Instead of using Supabase's rate-limited email service,
+      // we'll use our custom API that bypasses email entirely
+      const response = await fetch("/api/custom-reset-request", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: resetEmail }),
+      })
 
-      if (error) {
-        console.error("Password reset error:", error)
+      const data = await response.json()
 
-        // TEMPORARILY MODIFIED FOR TESTING
-        // Just show the error message directly without rate limiting
-        if (
-          error.message.toLowerCase().includes("rate limit") ||
-          error.message.toLowerCase().includes("too many requests") ||
-          error.message.toLowerCase().includes("email rate limit exceeded")
-        ) {
-          // Show error but don't enforce cooldown
-          setError(
-            "Email rate limit exceeded. This would normally require waiting, but rate limiting is disabled for testing.",
-          )
-
-          // Clear any stored rate limit timestamp
-          try {
-            localStorage.removeItem("garage_list_last_reset_time")
-          } catch (e) {
-            // Ignore localStorage errors
-          }
-        } else {
-          setError(error.message)
-        }
+      if (!response.ok) {
+        setError(data.error || "Failed to process reset request")
       } else {
         setResetSuccess(true)
-        // Clear any previous errors
         setError("")
-
-        // TEMPORARILY DISABLED FOR TESTING
-        /*
-        // Store the timestamp for rate limiting
-        try {
-          localStorage.setItem("garage_list_last_reset_time", Date.now().toString())
-        } catch (e) {
-          // Ignore localStorage errors
-        }
-
-        // Set normal cooldown for successful request
-        setCooldownActive(true)
-        setCooldownTime(10) // 10 seconds for normal cooldown
-
-        // Start cooldown timer
-        const timer = setInterval(() => {
-          setCooldownTime((prev) => {
-            if (prev <= 1) {
-              clearInterval(timer)
-              setCooldownActive(false)
-              return 0
-            }
-            return prev - 1
-          })
-        }, 1000)
-        */
       }
     } catch (error) {
       console.error("Unexpected error during password reset:", error)
@@ -245,10 +157,19 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
                 <div className="text-center space-y-4">
                   <Alert className="border-green-200 bg-green-50">
                     <AlertDescription className="text-green-800">
-                      Password reset email sent! Check your inbox and follow the instructions to reset your password.
+                      Password reset request processed! You can now go to the password reset page to change your
+                      password directly.
                     </AlertDescription>
                   </Alert>
-                  <Button onClick={resetForgotPasswordForm} className="w-full">
+                  <Button
+                    onClick={() => {
+                      window.location.href = "/reset-password"
+                    }}
+                    className="w-full"
+                  >
+                    Go to Password Reset
+                  </Button>
+                  <Button onClick={resetForgotPasswordForm} variant="outline" className="w-full">
                     Back to Sign In
                   </Button>
                 </div>
@@ -256,21 +177,7 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
                 <form onSubmit={handleForgotPassword} className="space-y-4">
                   {error && (
                     <Alert className="border-red-200 bg-red-50">
-                      <AlertDescription className="text-red-800">
-                        {error}
-                        {/* TEMPORARILY DISABLED FOR TESTING
-                        {rateLimited && (
-                          <div className="mt-2 text-sm space-y-1">
-                            <div>
-                              <strong>What you can do:</strong>
-                            </div>
-                            <div>• Check your email inbox (including spam folder) for existing reset emails</div>
-                            <div>• Wait {Math.ceil(cooldownTime / 60)} minutes before trying again</div>
-                            <div>• Contact support if you continue having issues</div>
-                          </div>
-                        )}
-                        */}
-                      </AlertDescription>
+                      <AlertDescription className="text-red-800">{error}</AlertDescription>
                     </Alert>
                   )}
 
@@ -288,12 +195,25 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
                   </div>
 
                   <Button type="submit" className="w-full" disabled={resetLoading}>
-                    {resetLoading ? "Sending..." : "Send Reset Email"}
+                    {resetLoading ? "Processing..." : "Request Password Reset"}
                   </Button>
 
                   <Button type="button" variant="outline" onClick={resetForgotPasswordForm} className="w-full">
                     Back to Sign In
                   </Button>
+
+                  <div className="text-center">
+                    <Button
+                      type="button"
+                      variant="link"
+                      className="text-sm"
+                      onClick={() => {
+                        window.location.href = "/reset-password"
+                      }}
+                    >
+                      Or go directly to password reset page
+                    </Button>
+                  </div>
                 </form>
               )}
             </div>
@@ -376,7 +296,7 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
 
       {/* TESTING MODE INDICATOR */}
       <div className="fixed bottom-2 left-2 bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded">
-        Testing Mode: Rate Limiting Disabled
+        Testing Mode: Custom Reset Flow
       </div>
     </div>
   )
