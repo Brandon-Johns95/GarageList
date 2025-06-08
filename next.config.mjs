@@ -24,11 +24,6 @@ const nextConfig = {
     ]
   },
   
-  // Enable experimental features for better caching
-  experimental: {
-    optimizeCss: true,
-  },
-  
   // Add build ID to force cache invalidation
   generateBuildId: async () => {
     return `build-${Date.now()}`
