@@ -156,6 +156,16 @@ export default function ProfilePage() {
     }
   }, [authLoading, user, profile])
 
+  useEffect(() => {
+    if (success) {
+      const timer = setTimeout(() => {
+        setSuccess("")
+      }, 5000) // Clear success message after 5 seconds
+
+      return () => clearTimeout(timer)
+    }
+  }, [success])
+
   const loadProfileData = () => {
     if (!profile) return
 
@@ -350,24 +360,38 @@ export default function ProfilePage() {
     setSuccess("")
 
     try {
+      console.log("Starting password update...")
+
       const { error } = await supabase.auth.updateUser({
         password: passwordInfo.newPassword,
       })
 
+      console.log("Password update response:", { error })
+
       if (error) {
+        console.error("Password update error:", error)
         throw error
       }
 
-      setSuccess("Password updated successfully!")
+      console.log("Password updated successfully!")
+
+      // Clear the form
       setPasswordInfo({
         currentPassword: "",
         newPassword: "",
         confirmPassword: "",
       })
+
+      // Set success message
+      setSuccess("Password updated successfully!")
+
+      // Scroll to top to show success message
+      window.scrollTo({ top: 0, behavior: "smooth" })
     } catch (error) {
       console.error("Error updating password:", error)
       setError(error instanceof Error ? error.message : "Failed to update password")
     } finally {
+      console.log("Setting saving to false")
       setSaving(false)
     }
   }
