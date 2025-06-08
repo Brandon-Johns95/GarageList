@@ -28,9 +28,12 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
   const [resetEmail, setResetEmail] = useState("")
   const [resetLoading, setResetLoading] = useState(false)
   const [resetSuccess, setResetSuccess] = useState(false)
-  const [cooldownActive, setCooldownActive] = useState(false)
-  const [cooldownTime, setCooldownTime] = useState(0)
-  const [rateLimited, setRateLimited] = useState(false)
+
+  // TEMPORARILY DISABLED FOR TESTING
+  // const [cooldownActive, setCooldownActive] = useState(false)
+  // const [cooldownTime, setCooldownTime] = useState(0)
+  // const [rateLimited, setRateLimited] = useState(false)
+
   const { signIn, resetPassword, user } = useAuth()
 
   // Load remember me preference on mount
@@ -58,17 +61,19 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
       setShowForgotPassword(false)
       setResetSuccess(false)
       setError("")
-      setRateLimited(false)
+      // setRateLimited(false) // TEMPORARILY DISABLED FOR TESTING
     }
   }, [isOpen])
 
+  // TEMPORARILY DISABLED FOR TESTING
+  /*
   // Check for existing rate limit on mount
   useEffect(() => {
     try {
       const lastResetTime = localStorage.getItem("garage_list_last_reset_time")
       if (lastResetTime) {
         const timeSinceLastReset = Date.now() - Number.parseInt(lastResetTime)
-        const rateLimitDuration = 60000 // 1 minute
+        const rateLimitDuration = 300000 // 5 minutes
 
         if (timeSinceLastReset < rateLimitDuration) {
           setRateLimited(true)
@@ -93,6 +98,7 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
       // Ignore localStorage errors
     }
   }, [])
+  */
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -124,11 +130,14 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
     setResetLoading(true)
     setError("")
 
+    // TEMPORARILY DISABLED FOR TESTING
+    /*
     if (cooldownActive) {
       setError(`Please wait ${cooldownTime} seconds before requesting another reset email.`)
       setResetLoading(false)
       return
     }
+    */
 
     if (!resetEmail || resetEmail.trim() === "") {
       setError("Please enter your email address")
@@ -142,37 +151,24 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
       if (error) {
         console.error("Password reset error:", error)
 
-        // Handle specific rate limit errors
+        // TEMPORARILY MODIFIED FOR TESTING
+        // Just show the error message directly without rate limiting
         if (
           error.message.toLowerCase().includes("rate limit") ||
           error.message.toLowerCase().includes("too many requests") ||
           error.message.toLowerCase().includes("email rate limit exceeded")
         ) {
-          setRateLimited(true)
-          setError("Too many password reset requests. Please wait 1 minute before trying again.")
+          // Show error but don't enforce cooldown
+          setError(
+            "Email rate limit exceeded. This would normally require waiting, but rate limiting is disabled for testing.",
+          )
 
-          // Set a longer cooldown for rate limit
-          setCooldownActive(true)
-          setCooldownTime(60) // 1 minute
-
-          // Store the timestamp
+          // Clear any stored rate limit timestamp
           try {
-            localStorage.setItem("garage_list_last_reset_time", Date.now().toString())
+            localStorage.removeItem("garage_list_last_reset_time")
           } catch (e) {
             // Ignore localStorage errors
           }
-
-          const timer = setInterval(() => {
-            setCooldownTime((prev) => {
-              if (prev <= 1) {
-                clearInterval(timer)
-                setCooldownActive(false)
-                setRateLimited(false)
-                return 0
-              }
-              return prev - 1
-            })
-          }, 1000)
         } else {
           setError(error.message)
         }
@@ -181,6 +177,8 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
         // Clear any previous errors
         setError("")
 
+        // TEMPORARILY DISABLED FOR TESTING
+        /*
         // Store the timestamp for rate limiting
         try {
           localStorage.setItem("garage_list_last_reset_time", Date.now().toString())
@@ -203,6 +201,7 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
             return prev - 1
           })
         }, 1000)
+        */
       }
     } catch (error) {
       console.error("Unexpected error during password reset:", error)
@@ -256,15 +255,21 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
               ) : (
                 <form onSubmit={handleForgotPassword} className="space-y-4">
                   {error && (
-                    <Alert className={`${rateLimited ? "border-orange-200 bg-orange-50" : "border-red-200 bg-red-50"}`}>
-                      <AlertDescription className={rateLimited ? "text-orange-800" : "text-red-800"}>
+                    <Alert className="border-red-200 bg-red-50">
+                      <AlertDescription className="text-red-800">
                         {error}
+                        {/* TEMPORARILY DISABLED FOR TESTING
                         {rateLimited && (
-                          <div className="mt-2 text-sm">
-                            <strong>Tip:</strong> Check your email inbox (including spam folder) for any existing reset
-                            emails.
+                          <div className="mt-2 text-sm space-y-1">
+                            <div>
+                              <strong>What you can do:</strong>
+                            </div>
+                            <div>• Check your email inbox (including spam folder) for existing reset emails</div>
+                            <div>• Wait {Math.ceil(cooldownTime / 60)} minutes before trying again</div>
+                            <div>• Contact support if you continue having issues</div>
                           </div>
                         )}
+                        */}
                       </AlertDescription>
                     </Alert>
                   )}
@@ -278,18 +283,12 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
                       onChange={(e) => setResetEmail(e.target.value)}
                       placeholder="Enter your email address"
                       required
-                      disabled={resetLoading || rateLimited}
+                      disabled={resetLoading}
                     />
                   </div>
 
-                  <Button type="submit" className="w-full" disabled={resetLoading || cooldownActive || rateLimited}>
-                    {resetLoading
-                      ? "Sending..."
-                      : cooldownActive
-                        ? `Wait ${cooldownTime}s`
-                        : rateLimited
-                          ? `Rate Limited - Wait ${cooldownTime}s`
-                          : "Send Reset Email"}
+                  <Button type="submit" className="w-full" disabled={resetLoading}>
+                    {resetLoading ? "Sending..." : "Send Reset Email"}
                   </Button>
 
                   <Button type="button" variant="outline" onClick={resetForgotPasswordForm} className="w-full">
@@ -374,6 +373,11 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
           )}
         </CardContent>
       </Card>
+
+      {/* TESTING MODE INDICATOR */}
+      <div className="fixed bottom-2 left-2 bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded">
+        Testing Mode: Rate Limiting Disabled
+      </div>
     </div>
   )
 }
