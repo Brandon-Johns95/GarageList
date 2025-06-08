@@ -28,8 +28,7 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
   const [resetEmail, setResetEmail] = useState("")
   const [resetLoading, setResetLoading] = useState(false)
   const [resetSuccess, setResetSuccess] = useState(false)
-
-  const { signIn, user } = useAuth()
+  const { signIn, resetPassword, user } = useAuth()
 
   // Load remember me preference on mount
   useEffect(() => {
@@ -48,16 +47,6 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
       onClose()
     }
   }, [user, isOpen, onClose])
-
-  // Reset state when modal opens/closes
-  useEffect(() => {
-    if (!isOpen) {
-      // Reset form state when modal closes
-      setShowForgotPassword(false)
-      setResetSuccess(false)
-      setError("")
-    }
-  }, [isOpen])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -84,7 +73,6 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
     }
   }
 
-  // COMPLETELY BYPASS SUPABASE EMAIL RESET
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault()
     setResetLoading(true)
@@ -97,22 +85,14 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
     }
 
     try {
-      // Instead of using Supabase's rate-limited email service,
-      // we'll use our custom API that bypasses email entirely
-      const response = await fetch("/api/custom-reset-request", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ email: resetEmail }),
-      })
+      const { error } = await resetPassword(resetEmail)
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || "Failed to process reset request")
+      if (error) {
+        console.error("Password reset error:", error)
+        setError(error.message)
       } else {
         setResetSuccess(true)
+        // Clear any previous errors
         setError("")
       }
     } catch (error) {
@@ -127,12 +107,6 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
     setShowForgotPassword(false)
     setResetEmail("")
     setResetSuccess(false)
-    setError("")
-  }
-
-  const showForgotPasswordForm = (e: React.MouseEvent) => {
-    e.preventDefault() // Prevent default link behavior
-    setShowForgotPassword(true)
     setError("")
   }
 
@@ -157,19 +131,10 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
                 <div className="text-center space-y-4">
                   <Alert className="border-green-200 bg-green-50">
                     <AlertDescription className="text-green-800">
-                      Password reset request processed! You can now go to the password reset page to change your
-                      password directly.
+                      Password reset email sent! Check your inbox and follow the instructions to reset your password.
                     </AlertDescription>
                   </Alert>
-                  <Button
-                    onClick={() => {
-                      window.location.href = "/reset-password"
-                    }}
-                    className="w-full"
-                  >
-                    Go to Password Reset
-                  </Button>
-                  <Button onClick={resetForgotPasswordForm} variant="outline" className="w-full">
+                  <Button onClick={resetForgotPasswordForm} className="w-full">
                     Back to Sign In
                   </Button>
                 </div>
@@ -195,25 +160,12 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
                   </div>
 
                   <Button type="submit" className="w-full" disabled={resetLoading}>
-                    {resetLoading ? "Processing..." : "Request Password Reset"}
+                    {resetLoading ? "Sending..." : "Send Reset Email"}
                   </Button>
 
                   <Button type="button" variant="outline" onClick={resetForgotPasswordForm} className="w-full">
                     Back to Sign In
                   </Button>
-
-                  <div className="text-center">
-                    <Button
-                      type="button"
-                      variant="link"
-                      className="text-sm"
-                      onClick={() => {
-                        window.location.href = "/reset-password"
-                      }}
-                    >
-                      Or go directly to password reset page
-                    </Button>
-                  </div>
                 </form>
               )}
             </div>
@@ -279,7 +231,12 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
               </Button>
 
               <div className="text-center space-y-2">
-                <Button type="button" variant="link" className="p-0 h-auto text-sm" onClick={showForgotPasswordForm}>
+                <Button
+                  type="button"
+                  variant="link"
+                  className="p-0 h-auto text-sm"
+                  onClick={() => setShowForgotPassword(true)}
+                >
                   Forgot your password?
                 </Button>
                 <div>
@@ -293,11 +250,6 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
           )}
         </CardContent>
       </Card>
-
-      {/* TESTING MODE INDICATOR */}
-      <div className="fixed bottom-2 left-2 bg-yellow-100 text-yellow-800 text-xs px-2 py-1 rounded">
-        Testing Mode: Custom Reset Flow
-      </div>
     </div>
   )
 }

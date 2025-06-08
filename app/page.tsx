@@ -22,7 +22,6 @@ import { AdvancedFilters } from "@/components/filters/advanced-filters"
 import { useDistanceCalculation } from "@/hooks/use-distance-calculation"
 import { formatDistance, isWithinRadius } from "@/lib/distance-utils"
 import { Header } from "@/components/header"
-import { ChangePasswordModal } from "@/components/auth/change-password-modal"
 
 // PSEUDOCODE: Helper functions for safe data handling
 const safeToLocaleString = (value: any): string => {
@@ -159,7 +158,6 @@ export default function CarMarketplace() {
   const [sortBy, setSortBy] = useState("newest")
   const [showSignIn, setShowSignIn] = useState(false)
   const [showSignUp, setShowSignUp] = useState(false)
-  const [showChangePassword, setShowChangePassword] = useState(false)
 
   // PSEUDOCODE: Filter state with optimized default values
   const [filters, setFilters] = useState({
@@ -372,16 +370,6 @@ export default function CarMarketplace() {
   useEffect(() => {
     loadListings()
   }, [loadListings])
-
-  // Check for change password flag from password reset
-  useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search)
-    if (urlParams.get("changePassword") === "true" && user) {
-      setShowChangePassword(true)
-      // Clean up the URL
-      window.history.replaceState({}, "", window.location.pathname)
-    }
-  }, [user])
 
   // PSEUDOCODE: Memoized filtered and sorted listings for performance
   const filteredCars = useMemo(() => {
@@ -748,7 +736,6 @@ export default function CarMarketplace() {
           setShowSignIn(true)
         }}
       />
-      <ChangePasswordModal isOpen={showChangePassword} onClose={() => setShowChangePassword(false)} />
     </div>
   )
 }
