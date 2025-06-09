@@ -22,6 +22,7 @@ import { AdvancedFilters } from "@/components/filters/advanced-filters"
 import { useDistanceCalculation } from "@/hooks/use-distance-calculation"
 import { formatDistance, isWithinRadius } from "@/lib/distance-utils"
 import { Header } from "@/components/header"
+import { PasswordResetModal } from "@/components/auth/password-reset-modal"
 
 // PSEUDOCODE: Helper functions for safe data handling
 const safeToLocaleString = (value: any): string => {
@@ -147,7 +148,7 @@ export default function CarMarketplace() {
     hasSelectedPreferences,
   } = useLocation()
 
-  const { user, profile, signOut } = useAuth()
+  const { user, profile, signOut, needsPasswordReset, setNeedsPasswordReset } = useAuth()
 
   // PSEUDOCODE: Component state management
   const [showLocationSelector, setShowLocationSelector] = useState(false)
@@ -736,6 +737,8 @@ export default function CarMarketplace() {
           setShowSignIn(true)
         }}
       />
+      {/* Password Reset Modal */}
+      <PasswordResetModal isOpen={needsPasswordReset} onClose={() => setNeedsPasswordReset(false)} />
     </div>
   )
 }

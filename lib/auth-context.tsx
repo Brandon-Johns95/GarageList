@@ -21,6 +21,8 @@ type AuthContextType = {
   user: User | null
   profile: UserProfile | null
   loading: boolean
+  needsPasswordReset: boolean
+  setNeedsPasswordReset: (needs: boolean) => void
   signIn: (email: string, password: string, rememberMe?: boolean) => Promise<{ error: any }>
   signUp: (email: string, password: string, userData: any) => Promise<{ error: any }>
   signOut: () => Promise<void>
@@ -58,6 +60,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [loading, setLoading] = useState(true)
+  const [needsPasswordReset, setNeedsPasswordReset] = useState(false)
 
   // STEP 4: Setup authentication monitoring
   useEffect(() => {
@@ -108,12 +111,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       console.log("Auth state changed:", event, session?.user?.email)
 
+      // Check if this is a password recovery event
+      if (event === "PASSWORD_RECOVERY") {
+        setNeedsPasswordReset(true)
+      }
+
       setUser(session?.user ?? null)
 
       if (session?.user) {
         await loadUserProfile(session.user.id)
       } else {
         setProfile(null)
+        setNeedsPasswordReset(false)
       }
 
       setLoading(false)
@@ -185,6 +194,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const updateUser = async (updates: { password?: string }) => {
     const { error } = await supabase.auth.updateUser(updates)
+
+    if (!error && updates.password) {
+      setNeedsPasswordReset(false)
+    }
+
     return { error }
   }
 
@@ -247,6 +261,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     profile,
     loading,
+    needsPasswordReset,
+    setNeedsPasswordReset,
     signIn,
     signUp,
     signOut,
