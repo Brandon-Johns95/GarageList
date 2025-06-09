@@ -28,7 +28,7 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
   const [resetEmail, setResetEmail] = useState("")
   const [resetLoading, setResetLoading] = useState(false)
   const [resetSuccess, setResetSuccess] = useState(false)
-  const { signIn, resetPassword, user } = useAuth()
+  const { signIn, user } = useAuth()
 
   // Load remember me preference on mount
   useEffect(() => {
@@ -85,19 +85,26 @@ export function SignInModal({ isOpen, onClose, onSwitchToSignUp }: SignInModalPr
     }
 
     try {
-      const { error } = await resetPassword(resetEmail)
+      // Use our custom API endpoint that bypasses Supabase rate limits
+      const response = await fetch("/api/custom-reset-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email: resetEmail }),
+      })
 
-      if (error) {
-        console.error("Password reset error:", error)
-        setError(error.message)
-      } else {
-        setResetSuccess(true)
-        // Clear any previous errors
-        setError("")
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to send reset email")
       }
-    } catch (error) {
-      console.error("Unexpected error during password reset:", error)
-      setError("An unexpected error occurred. Please try again.")
+
+      setResetSuccess(true)
+      setError("")
+    } catch (error: any) {
+      console.error("Password reset error:", error)
+      setError(error.message || "An unexpected error occurred. Please try again.")
     } finally {
       setResetLoading(false)
     }
